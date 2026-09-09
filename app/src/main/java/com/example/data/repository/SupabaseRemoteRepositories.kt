@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -81,26 +82,28 @@ class SupabaseCrewRepository(
     it.isAvailable && (role == null || it.primaryRole == role || role in it.secondaryRoles)
   }
 
-  override suspend fun updateCrewProfile(profile: CrewProfile): Result<CrewProfile> = runCatching {
-    val body = JSONObject().put("primary_role", profile.primaryRole.name)
-      .put("secondary_roles", JSONArray(profile.secondaryRoles.map { it.name }))
-      .put("skills", JSONArray(profile.skills)).put("experience_years", profile.experienceYears)
-      .put("gear_summary", profile.gearSummary).put("rating", profile.rating)
-      .put("total_completed_shoots", profile.totalCompletedShoots).put("is_available", profile.isAvailable)
-    api.request("PATCH", "rest/v1/crew_profiles?user_id=eq.${profile.userId}", body.toString(), token(), "return=representation").use { response ->
-      if (!response.isSuccessful) error(responseError(response))
-      val rows = JSONArray(response.body?.string().orEmpty())
-      if (rows.length() == 0) error("Crew profile was not returned by Supabase.")
+  override suspend fun updateCrewProfile(profile: CrewProfile): Result<CrewProfile> = withContext(Dispatchers.IO) {
+    runCatching {
+      val body = JSONObject().put("primary_role", profile.primaryRole.name)
+        .put("secondary_roles", JSONArray(profile.secondaryRoles.map { it.name }))
+        .put("skills", JSONArray(profile.skills)).put("experience_years", profile.experienceYears)
+        .put("gear_summary", profile.gearSummary).put("rating", profile.rating)
+        .put("total_completed_shoots", profile.totalCompletedShoots).put("is_available", profile.isAvailable)
+      api.request("PATCH", "rest/v1/crew_profiles?user_id=eq.${profile.userId}", body.toString(), token(), "return=representation").use { response ->
+        if (!response.isSuccessful) error(responseError(response))
+        val rows = JSONArray(response.body?.string().orEmpty())
+        if (rows.length() == 0) error("Crew profile was not returned by Supabase.")
+      }
+      val refreshed = refreshProfiles()
+      refreshed.find { it.userId == profile.userId } ?: error("Crew profile was not returned by Supabase.")
     }
-    val refreshed = refreshProfiles()
-    refreshed.find { it.userId == profile.userId } ?: error("Crew profile was not returned by Supabase.")
   }
 
   private fun profiles(): Flow<List<CrewProfile>> = _profiles
     .onStart { runCatching { refreshProfiles() } }
     .flowOn(Dispatchers.IO)
 
-  private suspend fun refreshProfiles(): List<CrewProfile> {
+  private suspend fun refreshProfiles(): List<CrewProfile> = withContext(Dispatchers.IO) {
     val result = runCatching {
       val crewRows = api.request(
         "GET",
@@ -110,7 +113,10 @@ class SupabaseCrewRepository(
         if (!response.isSuccessful) error(responseError(response))
         JSONArray(response.body?.string().orEmpty())
       }
-      if (crewRows.length() == 0) return emptyList()
+      if (crewRows.length() == 0) {
+        _profiles.value = emptyList()
+        return@withContext emptyList()
+      }
       val ids = List(crewRows.length()) { crewRows.getJSONObject(it).optString("user_id") }
         .filter { it.isNotBlank() }
       val usersById = if (ids.isEmpty()) emptyMap() else {
@@ -137,10 +143,10 @@ class SupabaseCrewRepository(
       }
     }.getOrElse { emptyList() }
     _profiles.value = result
-    return result
+    result
   }
 
-  private suspend fun update(id: String, body: JSONObject): Result<Unit> {
+  private suspend fun update(id: String, body: JSONObject): Result<Unit> = withContext(Dispatchers.IO) {
     val result = runCatching {
       val patchedRows = api.request(
         "PATCH",
@@ -164,13 +170,13 @@ class SupabaseCrewRepository(
       }
     }
     runCatching { refreshProfiles() }
-    result.fold(
-      onSuccess = { return Result.success(Unit) },
-      onFailure = {
-        android.util.Log.e("SupabaseCrew", "setAvailability failed for $id", it)
-        return Result.failure(it)
-      }
-    )
+    if (result.isSuccess) {
+      Result.success(Unit)
+    } else {
+      val error = result.exceptionOrNull() ?: IllegalStateException("Availability update failed")
+      android.util.Log.e("SupabaseCrew", "setAvailability failed for $id", error)
+      Result.failure(error)
+    }
   }
 
   private fun crewFromJson(json: JSONObject, user: JSONObject = JSONObject()): CrewProfile {
@@ -204,7 +210,8 @@ class SupabaseBookingRepository(
     emit(result)
   }.flowOn(Dispatchers.IO)
 
-  override suspend fun createBooking(booking: Booking): Result<Booking> = runCatching {
+  override suspend fun createBooking(booking: Booking): Result<Booking> = withContext(Dispatchers.IO) {
+    runCatching {
     val body = JSONObject().put("client_id", booking.clientId).put("shoot_type", booking.shootType.name).put("title", booking.title)
       .put("description", booking.description).put("shoot_date", databaseDate(booking.date)).put("start_time", databaseTime(booking.startTime))
       .put("duration_hours", booking.durationHours).put("location_name", booking.location.name).put("location_address", booking.location.address)
@@ -219,18 +226,23 @@ class SupabaseBookingRepository(
       api.request("POST", "rest/v1/booking_requirements", requirements.toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) }
     }
     loadBooking(id)
+    }
   }
   override suspend fun cancelBooking(bookingId: String): Result<Unit> = updateStatus(bookingId, BookingStatus.CANCELLED)
-  override suspend fun acceptBooking(bookingId: String, crewId: String): Result<Booking> = runCatching {
-    api.request("POST", "rest/v1/rpc/accept_booking", JSONObject().put("p_booking_id", bookingId).toString(), token()).use { response ->
-      if (!response.isSuccessful) error(responseError(response)); bookingFromJson(response.body?.string()?.let(::JSONObject) ?: error("Empty booking response"))
+  override suspend fun acceptBooking(bookingId: String, crewId: String): Result<Booking> = withContext(Dispatchers.IO) {
+    runCatching {
+      api.request("POST", "rest/v1/rpc/accept_booking", JSONObject().put("p_booking_id", bookingId).toString(), token()).use { response ->
+        if (!response.isSuccessful) error(responseError(response)); bookingFromJson(response.body?.string()?.let(::JSONObject) ?: error("Empty booking response"))
+      }
     }
   }
   override suspend fun declineBooking(bookingId: String, crewId: String): Result<Unit> = Result.success(Unit)
   override suspend fun updateBookingStatus(bookingId: String, status: BookingStatus): Result<Unit> = updateStatus(bookingId, status)
 
-  private suspend fun updateStatus(id: String, status: BookingStatus): Result<Unit> = runCatching {
-    api.request("PATCH", "rest/v1/bookings?id=eq.$id", JSONObject().put("status", status.name).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) }
+  private suspend fun updateStatus(id: String, status: BookingStatus): Result<Unit> = withContext(Dispatchers.IO) {
+    runCatching {
+      api.request("PATCH", "rest/v1/bookings?id=eq.$id", JSONObject().put("status", status.name).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) }
+    }
   }
   private fun bookings(): Flow<List<Booking>> = flow {
     val result = runCatching {
@@ -240,7 +252,9 @@ class SupabaseBookingRepository(
     }.getOrElse { emptyList() }
     _bookings.value = result; emit(result)
   }.flowOn(Dispatchers.IO)
-  private suspend fun loadBooking(id: String): Booking { var value: Booking? = null; bookings().collect { value = it.find { b -> b.id == id } }; return value ?: error("Booking was not returned by Supabase.") }
+  private suspend fun loadBooking(id: String): Booking = withContext(Dispatchers.IO) {
+    var value: Booking? = null; bookings().collect { value = it.find { b -> b.id == id } }; value ?: error("Booking was not returned by Supabase.")
+  }
 
   private fun bookingFromJson(j: JSONObject): Booking {
     val client = j.optJSONObject("client") ?: JSONObject(); val crew = j.optJSONObject("crew")
@@ -257,8 +271,10 @@ class SupabaseMessageRepository(api: SupabaseHttpClient = defaultApi(), session:
     val result = runCatching { api.request("GET", "rest/v1/messages?booking_id=eq.$bookingId&select=*,sender:profiles!messages_sender_id_fkey(*)&order=created_at.asc", accessToken = token()).use { r -> if (!r.isSuccessful) error(responseError(r)); JSONArray(r.body?.string().orEmpty()).let { a -> List(a.length()) { val j=a.getJSONObject(it); val s=j.optJSONObject("sender") ?: JSONObject(); Message(j.string("id"), bookingId, j.string("sender_id"), s.string("full_name"), enumValue(s.string("role"), UserRole.CLIENT), j.string("body"), timestamp(j.string("created_at"))) } } } }.getOrElse { emptyList() }
     emit(result)
   }.flowOn(Dispatchers.IO)
-  override suspend fun sendMessage(bookingId: String, senderId: String, senderName: String, senderRole: UserRole, text: String): Result<Message> = runCatching {
-    require(text.isNotBlank()) { "Message cannot be empty." }; api.request("POST", "rest/v1/messages", JSONObject().put("booking_id", bookingId).put("sender_id", senderId).put("body", text.trim()).toString(), token(), "return=representation").use { r -> if (!r.isSuccessful) error(responseError(r)); val j=JSONArray(r.body?.string().orEmpty()).getJSONObject(0); Message(j.string("id"), bookingId, senderId, senderName, senderRole, j.string("body"), timestamp(j.string("created_at"))) }
+  override suspend fun sendMessage(bookingId: String, senderId: String, senderName: String, senderRole: UserRole, text: String): Result<Message> = withContext(Dispatchers.IO) {
+    runCatching {
+      require(text.isNotBlank()) { "Message cannot be empty." }; api.request("POST", "rest/v1/messages", JSONObject().put("booking_id", bookingId).put("sender_id", senderId).put("body", text.trim()).toString(), token(), "return=representation").use { r -> if (!r.isSuccessful) error(responseError(r)); val j=JSONArray(r.body?.string().orEmpty()).getJSONObject(0); Message(j.string("id"), bookingId, senderId, senderName, senderRole, j.string("body"), timestamp(j.string("created_at"))) }
+    }
   }
 }
 
@@ -268,8 +284,8 @@ class SupabaseNotificationRepository(api: SupabaseHttpClient = defaultApi(), ses
   override fun getNotifications(userId: String): Flow<List<AppNotification>> = flow {
     val result = runCatching { api.request("GET", "rest/v1/notifications?recipient_id=eq.$userId&select=*&order=created_at.desc", accessToken=token()).use { r -> if (!r.isSuccessful) error(responseError(r)); JSONArray(r.body?.string().orEmpty()).let { a -> List(a.length()) { val j=a.getJSONObject(it); AppNotification(j.string("id"), userId, j.string("title"), j.string("body"), j.nullableString("booking_id"), timestamp(j.string("created_at")), j.optBoolean("is_read")) } } } }.getOrElse { emptyList() }; emit(result)
   }.flowOn(Dispatchers.IO)
-  override suspend fun sendNotification(notification: AppNotification) { api.request("POST", "rest/v1/notifications", JSONObject().put("recipient_id", notification.recipientUserId).put("booking_id", notification.bookingId).put("title", notification.title).put("body", notification.message).put("is_read", notification.isRead).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
-  override suspend fun markAsRead(notificationId: String) { api.request("PATCH", "rest/v1/notifications?id=eq.$notificationId", JSONObject().put("is_read", true).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
+  override suspend fun sendNotification(notification: AppNotification) = withContext(Dispatchers.IO) { api.request("POST", "rest/v1/notifications", JSONObject().put("recipient_id", notification.recipientUserId).put("booking_id", notification.bookingId).put("title", notification.title).put("body", notification.message).put("is_read", notification.isRead).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
+  override suspend fun markAsRead(notificationId: String) = withContext(Dispatchers.IO) { api.request("PATCH", "rest/v1/notifications?id=eq.$notificationId", JSONObject().put("is_read", true).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
   override suspend fun emitRequestEvent(event: RequestEvent) { _events.emit(event) }
 }
 
