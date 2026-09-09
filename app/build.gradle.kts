@@ -57,6 +57,7 @@ android {
       signingConfig = signingConfigs.getByName("release")
     }
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
@@ -70,6 +71,11 @@ android {
     includeInApk = false
     includeInBundle = true
   }
+}
+
+// Every built APK carries the FameBook name (e.g. FameBook-debug.apk).
+base {
+  archivesName.set("FameBook")
 }
 
 // Some unused dependencies are commented out below instead of being removed.
