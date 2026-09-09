@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.BuildConfig
 import com.example.data.remote.SupabaseHttpClient
+import com.example.data.remote.SupabaseSession
 import android.net.Uri
 import com.example.domain.model.AuthState
 import com.example.domain.model.User
@@ -19,13 +20,15 @@ class SupabaseUserRepository(
   private val api: SupabaseHttpClient = SupabaseHttpClient(
     BuildConfig.SUPABASE_URL,
     BuildConfig.SUPABASE_PUBLISHABLE_KEY
-  )
+  ),
+  private val session: SupabaseSession = SupabaseSession()
 ) : UserRepository {
   private val _currentUser = MutableStateFlow<User?>(null)
   override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
   private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
   override val authState: StateFlow<AuthState> = _authState.asStateFlow()
-  private var accessToken: String? = null
+  private val accessToken: String?
+    get() = session.accessToken
 
   override suspend fun login(email: String, password: String): Result<User> = withContext(Dispatchers.IO) {
     _authState.value = AuthState.Authenticating
@@ -55,7 +58,7 @@ class SupabaseUserRepository(
         val user = json.optJSONObject("user") ?: json
         val token = session?.optString("access_token").orEmpty()
         if (token.isBlank()) error("Account created. Confirm your email before signing in.")
-        accessToken = token
+        this@SupabaseUserRepository.session.accessToken = token
         loadProfile(user.getString("id"), name, email, phone)
       }
     }.fold({ user -> setAuthenticated(user) }, { failure(it.message ?: "Account creation failed.") })
@@ -64,7 +67,8 @@ class SupabaseUserRepository(
   override suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
     runCatching { accessToken?.let { api.request("POST", "auth/v1/logout", accessToken = it).use { } } }
       .fold({
-        accessToken = null
+        session.accessToken = null
+        session.currentUser = null
         _currentUser.value = null
         _authState.value = AuthState.Unauthenticated
         Result.success(Unit)
@@ -101,7 +105,7 @@ class SupabaseUserRepository(
     api.request(method, path, body).use { response ->
       if (!response.isSuccessful) error(response.errorMessage())
       val json = JSONObject(response.body?.string().orEmpty())
-      accessToken = json.getString("access_token")
+      session.accessToken = json.getString("access_token")
       val authUser = json.getJSONObject("user")
       val metadata = authUser.optJSONObject("user_metadata")
       loadProfile(authUser.getString("id"), metadata?.optString("full_name").orEmpty(), email, "")
@@ -126,6 +130,7 @@ class SupabaseUserRepository(
   )
 
   private fun setAuthenticated(user: User): Result<User> {
+    session.currentUser = user
     _currentUser.value = user
     _authState.value = AuthState.Authenticated(user)
     return Result.success(user)
