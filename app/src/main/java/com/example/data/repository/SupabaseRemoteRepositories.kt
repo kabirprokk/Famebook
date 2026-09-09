@@ -101,8 +101,30 @@ class SupabaseCrewRepository(
   }.flowOn(Dispatchers.IO)
 
   private suspend fun update(id: String, body: JSONObject) {
-    api.request("PATCH", "rest/v1/crew_profiles?user_id=eq.$id", body.toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) }
-    profiles().collect { }
+    // Never throw: availability toggle runs from UI scope and must not crash the app.
+    runCatching {
+      val patchedRows = api.request(
+        "PATCH",
+        "rest/v1/crew_profiles?user_id=eq.$id",
+        body.toString(),
+        token(),
+        "return=representation"
+      ).use { response ->
+        if (!response.isSuccessful) error(responseError(response))
+        JSONArray(response.body?.string().orEmpty()).length()
+      }
+      if (patchedRows == 0) {
+        // Profile missing (e.g. crew promoted before auto-creation): create it.
+        val insertBody = JSONObject()
+          .put("user_id", id)
+          .put("primary_role", CrewRole.PHOTOGRAPHER.name)
+          .put("is_available", body.optBoolean("is_available", false))
+        api.request("POST", "rest/v1/crew_profiles", insertBody.toString(), token(), "return=representation").use { response ->
+          if (!response.isSuccessful) error(responseError(response))
+        }
+      }
+    }
+    runCatching { profiles().collect { } }
   }
 
   private fun crewFromJson(json: JSONObject): CrewProfile {

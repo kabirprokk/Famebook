@@ -53,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -100,7 +101,8 @@ fun CrewHomeScreen(
   val context = LocalContext.current
 
   val crewProfile by crewRepository.getCrewProfileByUserId(currentUser.id).collectAsState(initial = null)
-  val isAvailable = crewProfile?.isAvailable ?: true
+  val isAvailable = crewProfile?.isAvailable ?: false
+  var isUpdatingAvailability by remember { mutableStateOf(false) }
 
   val incomingRequests by bookingRepository.getIncomingRequestsForCrew(currentUser.id).collectAsState(initial = emptyList())
   val assignedBookings by bookingRepository.getCrewBookings(currentUser.id).collectAsState(initial = emptyList())
@@ -148,9 +150,18 @@ fun CrewHomeScreen(
 
             Switch(
               checked = isAvailable,
+              enabled = !isUpdatingAvailability,
               onCheckedChange = { newStatus ->
+                if (isUpdatingAvailability) return@Switch
+                isUpdatingAvailability = true
                 scope.launch {
-                  crewRepository.setAvailability(currentUser.id, newStatus)
+                  try {
+                    crewRepository.setAvailability(currentUser.id, newStatus)
+                  } catch (e: Exception) {
+                    snackbarHostState.showSnackbar("Could not update availability. Please try again.")
+                  } finally {
+                    isUpdatingAvailability = false
+                  }
                 }
               },
               colors = SwitchDefaults.colors(
