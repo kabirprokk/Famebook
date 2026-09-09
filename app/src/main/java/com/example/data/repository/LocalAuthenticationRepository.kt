@@ -1,10 +1,8 @@
 package com.example.data.repository
 
-import com.example.data.local.LocalSeedData
 import com.example.domain.model.AuthSession
 import com.example.domain.model.AuthState
 import com.example.domain.model.User
-import com.example.domain.model.UserRole
 import com.example.domain.repository.AuthenticationRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,28 +39,9 @@ class LocalAuthenticationRepository(
     }
 
     _authState.value = AuthState.Authenticating
-
-    // Look for existing user in user repository
-    val existingUser = userRepository.getAllUsers().firstOrNull {
-      it.email.equals(cleanEmail, ignoreCase = true)
-    }
-
-    val user = if (existingUser != null) {
-      existingUser
-    } else {
-      // Create new client user if not found (clean development/testing behavior)
-      val newClient = User(
-        id = "usr_${UUID.randomUUID().toString().take(8)}",
-        name = cleanEmail.substringBefore("@").replace(".", " ").split(" ")
-          .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } },
-        email = cleanEmail,
-        phone = "+91 98000 00000",
-        role = UserRole.CLIENT,
-        companyName = null,
-        bio = "Client member on FameBook."
-      )
-      userRepository.addUser(newClient)
-      newClient
+    val user = userRepository.login(cleanEmail, password).getOrElse {
+      _authState.value = AuthState.AuthenticationError(it.message ?: "Sign in failed.")
+      return Result.failure(it)
     }
 
     val session = AuthSession(
@@ -99,30 +78,10 @@ class LocalAuthenticationRepository(
     }
 
     _authState.value = AuthState.Authenticating
-
-    // Check if account with email already exists
-    val existing = userRepository.getAllUsers().firstOrNull {
-      it.email.equals(cleanEmail, ignoreCase = true)
+    val newUser = userRepository.register(cleanName, cleanEmail, password = password).getOrElse {
+      _authState.value = AuthState.AuthenticationError(it.message ?: "Account creation failed.")
+      return Result.failure(it)
     }
-    if (existing != null) {
-      val err = "An account with this email already exists. Please sign in."
-      _authState.value = AuthState.AuthenticationError(err)
-      return Result.failure(IllegalArgumentException(err))
-    }
-
-    // Every signed up user is created with UserRole.CLIENT.
-    // The user does NOT select a role as specified in production architecture.
-    val newUser = User(
-      id = "usr_${UUID.randomUUID().toString().take(8)}",
-      name = cleanName,
-      email = cleanEmail,
-      phone = "+91 98000 00000",
-      role = UserRole.CLIENT,
-      companyName = null,
-      bio = "Client member on FameBook."
-    )
-
-    userRepository.addUser(newUser)
 
     val session = AuthSession(
       userId = newUser.id,
@@ -142,7 +101,7 @@ class LocalAuthenticationRepository(
     if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
       return Result.failure(IllegalArgumentException("Please enter a valid email address."))
     }
-    // Simulation of secure password reset dispatch
+    // A remote implementation will deliver the actual reset message.
     return Result.success(Unit)
   }
 

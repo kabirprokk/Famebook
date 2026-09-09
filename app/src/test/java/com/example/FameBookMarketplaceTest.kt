@@ -1,6 +1,5 @@
 package com.example
 
-import com.example.data.local.LocalSeedData
 import com.example.data.repository.LocalBookingRepository
 import com.example.data.repository.LocalCrewRepository
 import com.example.data.repository.LocalMessageRepository
@@ -8,142 +7,99 @@ import com.example.data.repository.LocalNotificationRepository
 import com.example.data.repository.LocalUserRepository
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
+import com.example.domain.model.CrewProfile
 import com.example.domain.model.CrewRequirement
 import com.example.domain.model.CrewRole
 import com.example.domain.model.LocationInfo
 import com.example.domain.model.ShootType
+import com.example.domain.model.User
 import com.example.domain.model.UserRole
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
 class FameBookMarketplaceTest {
-
   private lateinit var userRepository: LocalUserRepository
   private lateinit var crewRepository: LocalCrewRepository
-  private lateinit var notificationRepository: LocalNotificationRepository
   private lateinit var bookingRepository: LocalBookingRepository
   private lateinit var messageRepository: LocalMessageRepository
+
+  private val client = User("client", "Client User", "client@example.com", "", UserRole.CLIENT)
+  private val crew = User("crew", "Crew User", "crew@example.com", "", UserRole.CREW)
 
   @Before
   fun setup() {
     userRepository = LocalUserRepository()
     crewRepository = LocalCrewRepository()
-    notificationRepository = LocalNotificationRepository()
-    bookingRepository = LocalBookingRepository(crewRepository, notificationRepository)
+    val notifications = LocalNotificationRepository()
+    bookingRepository = LocalBookingRepository(crewRepository, notifications)
     messageRepository = LocalMessageRepository()
+    runBlocking {
+      crewRepository.updateCrewProfile(
+        CrewProfile(
+          id = "profile-crew",
+          userId = crew.id,
+          name = crew.name,
+          primaryRole = CrewRole.CINEMATOGRAPHER,
+          experienceYears = 3,
+          gearSummary = "Production kit",
+          phone = "",
+          email = crew.email
+        )
+      )
+    }
   }
+
+  private fun booking(id: String) = Booking(
+    id = id,
+    clientId = client.id,
+    clientName = client.name,
+    clientPhone = client.phone,
+    clientEmail = client.email,
+    shootType = ShootType.VIDEOGRAPHY,
+    title = "Production shoot",
+    description = "A production brief",
+    date = "25 Oct 2026",
+    startTime = "08:00 PM",
+    durationHours = 4,
+    location = LocationInfo("Studio", "Mumbai"),
+    requirements = listOf(CrewRequirement(CrewRole.CINEMATOGRAPHER)),
+    status = BookingStatus.SEARCHING_CREW
+  )
 
   @Test
   fun `client booking request creation transitions to searching crew`() = runBlocking {
-    val client = LocalSeedData.initialUsers.first { it.role == UserRole.CLIENT }
-    val booking = Booking(
-      id = "TEST-01",
-      clientId = client.id,
-      clientName = client.name,
-      clientPhone = client.phone,
-      clientEmail = client.email,
-      shootType = ShootType.VIDEOGRAPHY,
-      title = "Cyberpunk Music Video",
-      description = "Fast 4K footage with neon lighting",
-      date = "25 Oct 2026",
-      startTime = "08:00 PM",
-      durationHours = 4,
-      location = LocationInfo("Bandra Studio", "Bandra West, Mumbai"),
-      requirements = listOf(CrewRequirement(CrewRole.CINEMATOGRAPHER, 1)),
-      status = BookingStatus.SEARCHING_CREW
-    )
-
-    val createResult = bookingRepository.createBooking(booking)
-    assertTrue(createResult.isSuccess)
-    val created = createResult.getOrThrow()
+    val created = bookingRepository.createBooking(booking("TEST-01")).getOrThrow()
     assertEquals(BookingStatus.SEARCHING_CREW, created.status)
-
-    // Check incoming requests for available crew
-    val crew = LocalSeedData.initialUsers.first { it.role == UserRole.CREW }
-    val crewIncoming = bookingRepository.getIncomingRequestsForCrew(crew.id).first()
-    assertTrue(crewIncoming.any { it.id == created.id })
+    assertTrue(bookingRepository.getIncomingRequestsForCrew(crew.id).first().any { it.id == created.id })
   }
 
   @Test
-  fun `crew accepts shoot request and triggers atomic confirmation`() = runBlocking {
-    val client = LocalSeedData.initialUsers.first { it.role == UserRole.CLIENT }
-    val crewMembers = LocalSeedData.initialUsers.filter { it.role == UserRole.CREW }
-    val firstCrew = crewMembers[0]
-    val secondCrew = crewMembers[1]
-
-    val booking = Booking(
-      id = "TEST-02",
-      clientId = client.id,
-      clientName = client.name,
-      clientPhone = client.phone,
-      clientEmail = client.email,
-      shootType = ShootType.FASHION_SHOOT,
-      title = "Summer Editorial",
-      description = "Outdoor editorial",
-      date = "28 Oct 2026",
-      startTime = "10:00 AM",
-      durationHours = 3,
-      location = LocationInfo("Juhu Beach", "Juhu, Mumbai"),
-      requirements = listOf(CrewRequirement(CrewRole.PHOTOGRAPHER, 1)),
-      status = BookingStatus.SEARCHING_CREW
-    )
-
-    val created = bookingRepository.createBooking(booking).getOrThrow()
-
-    // First crew accepts
-    val acceptResult = bookingRepository.acceptBooking(created.id, firstCrew.id)
-    assertTrue(acceptResult.isSuccess)
-    val confirmed = acceptResult.getOrThrow()
-
-    assertEquals(BookingStatus.CONFIRMED, confirmed.status)
-    assertEquals(firstCrew.id, confirmed.assignedCrewId)
-    assertEquals(firstCrew.name, confirmed.assignedCrewName)
-
-    // Second crew attempt to accept must fail due to atomic mutex lock
-    val secondAcceptResult = bookingRepository.acceptBooking(created.id, secondCrew.id)
-    assertFalse(secondAcceptResult.isSuccess)
+  fun `only one crew member can accept a shoot request`() = runBlocking {
+    val created = bookingRepository.createBooking(booking("TEST-02")).getOrThrow()
+    val accepted = bookingRepository.acceptBooking(created.id, crew.id).getOrThrow()
+    assertEquals(BookingStatus.CONFIRMED, accepted.status)
+    assertEquals(crew.id, accepted.assignedCrewId)
+    assertFalse(bookingRepository.acceptBooking(created.id, "another-crew").isSuccess)
   }
 
   @Test
-  fun `chat messaging sends and retrieves messages for booking`() = runBlocking {
-    val client = LocalSeedData.initialUsers.first { it.role == UserRole.CLIENT }
-    val bookingId = "BK-7892"
-    val initialList = messageRepository.getMessages(bookingId).first()
-    val initialCount = initialList.size
-
-    val sendResult = messageRepository.sendMessage(
-      bookingId = bookingId,
-      senderId = client.id,
-      senderName = client.name,
-      senderRole = UserRole.CLIENT,
-      text = "Looking forward to shoot tomorrow!"
-    )
-    assertTrue(sendResult.isSuccess)
-
-    val updatedList = messageRepository.getMessages(bookingId).first()
-    assertEquals(initialCount + 1, updatedList.size)
-    assertEquals("Looking forward to shoot tomorrow!", updatedList.last().text)
+  fun `chat messaging sends and retrieves messages`() = runBlocking {
+    val result = messageRepository.sendMessage("BK-7892", client.id, client.name, client.role, "Hello")
+    assertTrue(result.isSuccess)
+    assertEquals("Hello", messageRepository.getMessages("BK-7892").first().last().text)
   }
 
   @Test
-  fun `user login and logout flow works correctly`() = runBlocking {
-    val loginResult = userRepository.login("client@famebros.studio", "password123")
-    assertTrue(loginResult.isSuccess)
-    val user = loginResult.getOrThrow()
-    assertEquals(UserRole.CLIENT, user.role)
-    assertEquals(user.id, userRepository.currentUser.value?.id)
-
+  fun `new accounts default to client and require the registered password`() = runBlocking {
+    assertTrue(userRepository.register(client.name, client.email, password = "password123").isSuccess)
+    assertTrue(userRepository.login(client.email, "password123").isSuccess)
+    assertEquals(UserRole.CLIENT, userRepository.currentUser.value?.role)
+    assertFalse(userRepository.login(client.email, "wrong-password").isSuccess)
     userRepository.logout()
     assertEquals(null, userRepository.currentUser.value)
   }

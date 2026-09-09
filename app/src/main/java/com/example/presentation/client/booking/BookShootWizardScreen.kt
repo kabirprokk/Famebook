@@ -108,6 +108,7 @@ fun BookShootWizardScreen(
   var selectedDuration by remember { mutableIntStateOf(4) }
   var locationName by remember { mutableStateOf("Bandra Production Studio") }
   var locationAddress by remember { mutableStateOf("Bandra West, Mumbai") }
+  var locationInstructions by remember { mutableStateOf("") }
 
   val crewQuantities = remember {
     mutableStateMapOf<CrewRole, Int>().apply {
@@ -118,6 +119,7 @@ fun BookShootWizardScreen(
 
   var shootTitle by remember { mutableStateOf("") }
   var shootDescription by remember { mutableStateOf("") }
+  var specialInstructions by remember { mutableStateOf("") }
 
   Scaffold(
     containerColor = ObsidianBlack,
@@ -222,6 +224,7 @@ fun BookShootWizardScreen(
                     address = locationAddress.ifBlank { "Mumbai" }
                   ),
                   requirements = requirements,
+                  specialInstructions = "$locationInstructions\n$specialInstructions".trim(),
                   status = BookingStatus.SEARCHING_CREW
                 )
                 onRequestCrewSubmit(newBooking)
@@ -266,7 +269,9 @@ fun BookShootWizardScreen(
             name = locationName,
             address = locationAddress,
             onNameChange = { locationName = it },
-            onAddressChange = { locationAddress = it }
+            onAddressChange = { locationAddress = it },
+            instructions = locationInstructions,
+            onInstructionsChange = { locationInstructions = it }
           )
           4 -> Step4Who(
             quantities = crewQuantities,
@@ -283,6 +288,8 @@ fun BookShootWizardScreen(
             onTitleChange = { shootTitle = it },
             description = shootDescription,
             onDescriptionChange = { shootDescription = it },
+            specialInstructions = specialInstructions,
+            onSpecialInstructionsChange = { specialInstructions = it },
             shootType = selectedShootType
           )
           6 -> Step6Review(
@@ -552,7 +559,9 @@ private fun Step3Where(
   name: String,
   address: String,
   onNameChange: (String) -> Unit,
-  onAddressChange: (String) -> Unit
+  onAddressChange: (String) -> Unit,
+  instructions: String,
+  onInstructionsChange: (String) -> Unit
 ) {
   val presets = listOf(
     "FameBros Studio • Andheri West",
@@ -606,6 +615,26 @@ private fun Step3Where(
       modifier = Modifier
         .fillMaxWidth()
         .testTag("wizard_location_address"),
+      colors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = PureWhite,
+        unfocusedTextColor = TextPrimary,
+        focusedContainerColor = DarkCard,
+        unfocusedContainerColor = DarkCard,
+        focusedBorderColor = AmberGold,
+        unfocusedBorderColor = DarkBorder
+      ),
+      shape = RoundedCornerShape(14.dp)
+    )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    OutlinedTextField(
+      value = instructions,
+      onValueChange = onInstructionsChange,
+      label = { Text("Location instructions", color = TextSecondary) },
+      placeholder = { Text("Access notes, parking, entry details", color = TextMuted) },
+      modifier = Modifier.fillMaxWidth(),
+      minLines = 2,
       colors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = PureWhite,
         unfocusedTextColor = TextPrimary,
@@ -776,6 +805,8 @@ private fun Step5Brief(
   onTitleChange: (String) -> Unit,
   description: String,
   onDescriptionChange: (String) -> Unit,
+  specialInstructions: String,
+  onSpecialInstructionsChange: (String) -> Unit,
   shootType: ShootType
 ) {
   Column(
@@ -839,6 +870,26 @@ private fun Step5Brief(
         .fillMaxWidth()
         .height(180.dp)
         .testTag("wizard_brief_description"),
+      colors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = PureWhite,
+        unfocusedTextColor = TextPrimary,
+        focusedContainerColor = DarkCard,
+        unfocusedContainerColor = DarkCard,
+        focusedBorderColor = AmberGold,
+        unfocusedBorderColor = DarkBorder
+      ),
+      shape = RoundedCornerShape(14.dp)
+    )
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    OutlinedTextField(
+      value = specialInstructions,
+      onValueChange = onSpecialInstructionsChange,
+      label = { Text("Special instructions", color = TextSecondary) },
+      placeholder = { Text("Anything the crew should know before the shoot", color = TextMuted) },
+      modifier = Modifier.fillMaxWidth(),
+      minLines = 3,
       colors = OutlinedTextFieldDefaults.colors(
         focusedTextColor = PureWhite,
         unfocusedTextColor = TextPrimary,

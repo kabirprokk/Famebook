@@ -6,6 +6,7 @@ import com.example.data.repository.LocalCrewRepository
 import com.example.data.repository.LocalMessageRepository
 import com.example.data.repository.LocalNotificationRepository
 import com.example.data.repository.LocalUserRepository
+import com.example.data.repository.SupabaseUserRepository
 import com.example.domain.repository.AuthenticationRepository
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
@@ -24,7 +25,7 @@ object ServiceLocator {
   }
 
   val userRepository: UserRepository by lazy {
-    _localUserRepository
+    SupabaseUserRepository()
   }
 
   val authenticationRepository: AuthenticationRepository by lazy {

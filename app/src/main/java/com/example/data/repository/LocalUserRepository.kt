@@ -20,12 +20,13 @@ class LocalUserRepository : UserRepository {
   private val usersList = mutableListOf<User>().apply {
     addAll(LocalSeedData.initialUsers)
   }
+  private val passwords = mutableMapOf<String, String>()
 
   // Active authenticated user
-  private val _currentUser = MutableStateFlow<User?>(LocalSeedData.verifiedClient)
+  private val _currentUser = MutableStateFlow<User?>(null)
   override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
-  private val _authState = MutableStateFlow<AuthState>(AuthState.Authenticated(LocalSeedData.verifiedClient))
+  private val _authState = MutableStateFlow<AuthState>(AuthState.Unauthenticated)
   override val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
   fun setCurrentUser(user: User?) {
@@ -35,11 +36,6 @@ class LocalUserRepository : UserRepository {
     } else {
       _authState.value = AuthState.Unauthenticated
     }
-  }
-
-  fun addUser(user: User) {
-    usersList.removeAll { it.id == user.id || it.email.equals(user.email, ignoreCase = true) }
-    usersList.add(user)
   }
 
   override suspend fun getAllUsers(): List<User> {
@@ -60,21 +56,11 @@ class LocalUserRepository : UserRepository {
     _authState.value = AuthState.Authenticating
 
     val matchedUser = usersList.firstOrNull { it.email.equals(cleanEmail, ignoreCase = true) }
-      ?: run {
-        val inferredRole = if (cleanEmail.contains("crew", ignoreCase = true)) UserRole.CREW else UserRole.CLIENT
-        val newUser = User(
-          id = "usr_${UUID.randomUUID().toString().take(8)}",
-          name = cleanEmail.substringBefore("@").replace(".", " ").split(" ")
-            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } },
-          email = cleanEmail,
-          phone = "+91 98000 00000",
-          role = inferredRole,
-          companyName = if (inferredRole == UserRole.CLIENT) "Studio Productions" else "FameBros Crew",
-          bio = "Verified FameBook professional account."
-        )
-        usersList.add(newUser)
-        newUser
-      }
+      ?: return Result.failure(IllegalArgumentException("No account found for this email."))
+    if (passwords[matchedUser.email.lowercase()] != password) {
+      _authState.value = AuthState.AuthenticationError("Incorrect email or password.")
+      return Result.failure(IllegalArgumentException("Incorrect email or password."))
+    }
 
     _currentUser.value = matchedUser
     _authState.value = AuthState.Authenticated(matchedUser)
@@ -86,10 +72,17 @@ class LocalUserRepository : UserRepository {
     email: String,
     phone: String,
     role: UserRole,
-    companyOrSpecialty: String?
+    companyOrSpecialty: String?,
+    password: String
   ): Result<User> {
-    if (name.isBlank() || email.isBlank()) {
-      val err = "Name and Email are required."
+    if (name.isBlank() || email.isBlank() || !email.contains("@")) {
+      val err = "Enter your full name and a valid email address."
+      _authState.value = AuthState.AuthenticationError(err)
+      return Result.failure(IllegalArgumentException(err))
+    }
+
+    if (passwords.containsKey(email.trim().lowercase())) {
+      val err = "An account with this email already exists. Please sign in."
       _authState.value = AuthState.AuthenticationError(err)
       return Result.failure(IllegalArgumentException(err))
     }
@@ -108,6 +101,7 @@ class LocalUserRepository : UserRepository {
 
     usersList.removeAll { it.email.equals(email.trim(), ignoreCase = true) }
     usersList.add(newUser)
+    passwords[newUser.email.lowercase()] = password
 
     _currentUser.value = newUser
     _authState.value = AuthState.Authenticated(newUser)

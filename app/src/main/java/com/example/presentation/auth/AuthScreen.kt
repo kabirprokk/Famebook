@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.domain.model.User
-import com.example.domain.model.UserRole
 import com.example.domain.repository.UserRepository
 import com.example.presentation.components.PrimaryGoldButton
 import com.example.ui.theme.AmberGold
@@ -484,14 +483,11 @@ fun AuthScreen(
                 isLoading = true
                 errorMessage = null
                 scope.launch {
-                  // User does NOT select role. Account created as CLIENT.
-                  val result = userRepository.register(
-                    name = signUpFullName,
-                    email = signUpEmail,
-                    phone = "+91 98000 00000",
-                    role = UserRole.CLIENT,
-                    companyOrSpecialty = null
-                  )
+                   val result = userRepository.register(
+                     name = signUpFullName,
+                     email = signUpEmail,
+                     password = signUpPassword
+                   )
                   isLoading = false
                   if (result.isSuccess) {
                     onLoginSuccess(result.getOrThrow())
@@ -535,31 +531,6 @@ fun AuthScreen(
 
       Spacer(modifier = Modifier.height(28.dp))
 
-      // Studio hint for testing verified accounts
-      Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = DarkElevated,
-        border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-          Text(
-            text = "VERIFIED STUDIO ACCOUNTS",
-            style = MaterialTheme.typography.labelSmall.copy(
-              fontWeight = FontWeight.Bold,
-              letterSpacing = 1.sp
-            ),
-            color = AmberGold
-          )
-          Spacer(modifier = Modifier.height(6.dp))
-          Text(
-            text = "Client: client@famebros.studio\nCrew: marcus@famebros.studio\nAdmin: admin@famebros.studio",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
-            lineHeight = 18.sp
-          )
-        }
-      }
     }
   }
 

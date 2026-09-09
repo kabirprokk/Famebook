@@ -67,7 +67,8 @@ fun SplashScreen(
 
   LaunchedEffect(Unit) {
     visible = true
-    delay(1500)
+    // Keep branding visible briefly without making every launch feel blocked.
+    delay(400)
     onFinish()
   }
 

@@ -720,7 +720,6 @@ fun SimpleStatusBadge(status: BookingStatus) {
     BookingStatus.IN_PROGRESS -> LensCyan to "IN PRODUCTION"
     BookingStatus.COMPLETED -> EmeraldSuccess to "COMPLETED"
     BookingStatus.CANCELLED -> RecRed to "CANCELLED"
-    BookingStatus.EXPIRED -> RecRed to "EXPIRED"
   }
 
   Row(verticalAlignment = Alignment.CenterVertically) {

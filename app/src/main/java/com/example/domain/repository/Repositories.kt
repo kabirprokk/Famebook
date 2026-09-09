@@ -33,7 +33,8 @@ interface UserRepository {
     email: String,
     phone: String = "",
     role: UserRole = UserRole.CLIENT,
-    companyOrSpecialty: String? = null
+    companyOrSpecialty: String? = null,
+    password: String = ""
   ): Result<User>
   suspend fun logout(): Result<Unit>
   suspend fun updateProfile(

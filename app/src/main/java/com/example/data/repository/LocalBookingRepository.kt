@@ -72,7 +72,7 @@ class LocalBookingRepository(
   override fun getIncomingRequestsForCrew(crewId: String): Flow<List<Booking>> {
     return combine(_bookings, crewRepository.crewProfiles) { list, profiles ->
       val crewProfile = profiles.find { it.id == crewId || it.userId == crewId }
-      val isAvailable = crewProfile?.isAvailable ?: true
+      val isAvailable = crewProfile?.isAvailable == true
 
       if (!isAvailable) {
         emptyList()
@@ -158,7 +158,7 @@ class LocalBookingRepository(
     }
 
     val crew = crewRepository.crewProfiles.value.find { it.id == crewId || it.userId == crewId }
-      ?: LocalSeedData.initialCrewProfiles.first()
+      ?: return Result.failure(IllegalArgumentException("Crew profile not found."))
 
     val updatedBooking = target.copy(
       status = BookingStatus.CONFIRMED,
