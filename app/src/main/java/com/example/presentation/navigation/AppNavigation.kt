@@ -382,6 +382,7 @@ fun AppNavigation(
                   currentUser = user,
                   bookingRepository = bookingRepository,
                   crewRepository = crewRepository,
+                  userRepository = userRepository,
                   onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) }
                 )
               }

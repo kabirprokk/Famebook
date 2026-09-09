@@ -147,4 +147,16 @@ class LocalUserRepository : UserRepository {
   override suspend fun getUserById(userId: String): User? {
     return usersList.firstOrNull { it.id == userId }
   }
+
+  override suspend fun updateUserRole(userId: String, role: UserRole): Result<User> {
+    val index = usersList.indexOfFirst { it.id == userId }
+    if (index == -1) return Result.failure(IllegalArgumentException("User not found"))
+    val updated = usersList[index].copy(role = role)
+    usersList[index] = updated
+    if (_currentUser.value?.id == userId) {
+      _currentUser.value = updated
+      _authState.value = AuthState.Authenticated(updated)
+    }
+    return Result.success(updated)
+  }
 }

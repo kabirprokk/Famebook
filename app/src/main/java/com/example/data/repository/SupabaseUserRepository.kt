@@ -99,7 +99,32 @@ class SupabaseUserRepository(
     }.getOrNull()
   }
 
-  override suspend fun getAllUsers(): List<User> = emptyList()
+  override suspend fun getAllUsers(): List<User> = withContext(Dispatchers.IO) {
+    runCatching {
+      api.request("GET", "rest/v1/profiles?select=*&order=created_at.desc&limit=100", accessToken = accessToken).use { response ->
+        if (!response.isSuccessful) return@runCatching emptyList()
+        val rows = JSONArray(response.body?.string().orEmpty())
+        List(rows.length()) { profileFromJson(rows.getJSONObject(it)) }
+      }
+    }.getOrDefault(emptyList())
+  }
+
+  override suspend fun updateUserRole(userId: String, role: UserRole): Result<User> = withContext(Dispatchers.IO) {
+    runCatching {
+      val payload = JSONObject().put("p_user_id", userId).put("p_role", role.name)
+      api.request("POST", "rest/v1/rpc/assign_user_role", payload.toString(), accessToken).use { response ->
+        if (!response.isSuccessful) error(response.errorMessage())
+        val body = response.body?.string().orEmpty().trim()
+        val json = if (body.startsWith("[")) JSONArray(body).getJSONObject(0) else JSONObject(body)
+        profileFromJson(json)
+      }
+    }.fold(
+      { updated ->
+        if (_currentUser.value?.id == updated.id) setAuthenticated(updated) else Result.success(updated)
+      },
+      { Result.failure(it) }
+    )
+  }
 
   private fun requestUser(method: String, path: String, body: String, email: String): Result<User> = runCatching {
     api.request(method, path, body).use { response ->

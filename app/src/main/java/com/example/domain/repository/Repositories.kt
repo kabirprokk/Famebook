@@ -46,6 +46,8 @@ interface UserRepository {
   ): Result<User>
   suspend fun getUserById(userId: String): User?
   suspend fun getAllUsers(): List<User> = emptyList()
+  suspend fun updateUserRole(userId: String, role: UserRole): Result<User> =
+    Result.failure(UnsupportedOperationException("Role assignment not supported"))
 }
 
 interface BookingRepository {

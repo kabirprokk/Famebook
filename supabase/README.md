@@ -3,7 +3,8 @@
 1. Open the Supabase dashboard for project `foelkeqfmovtxxrhqxpc`.
 2. Open **SQL Editor** and create a new query.
 3. Paste and run `001_initial_schema.sql`.
-4. In **Authentication > Providers**, enable **Email** and keep Google disabled for now.
+4. Paste and run `002_admin_role_management.sql` to enable admin-only in-app role assignment.
+5. In **Authentication > Providers**, enable **Email** and keep Google disabled for now.
 5. In **Authentication > URL Configuration > Redirect URLs**, add:
    `famebook://auth/callback`
 6. In **Authentication > Email Templates > Confirm signup**, paste `email-confirmation.html`.
