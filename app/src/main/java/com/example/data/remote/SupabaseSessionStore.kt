@@ -11,10 +11,12 @@ class SupabaseSessionStore(context: Context) {
 
   fun save(accessToken: String?, refreshToken: String?) {
     prefs.edit {
-      putString(KEY_ACCESS, accessToken)
-      putString(KEY_REFRESH, refreshToken)
+      if (accessToken.isNullOrBlank()) remove(KEY_ACCESS) else putString(KEY_ACCESS, accessToken)
+      if (refreshToken.isNullOrBlank()) remove(KEY_REFRESH) else putString(KEY_REFRESH, refreshToken)
     }
   }
+
+  fun hasSession(): Boolean = !accessToken().isNullOrBlank() || !refreshToken().isNullOrBlank()
 
   fun accessToken(): String? = prefs.getString(KEY_ACCESS, null)
 

@@ -126,6 +126,8 @@ fun AppNavigation(
   val context = LocalContext.current
 
   var showNotificationDialog by remember { mutableStateOf(false) }
+  var isRestoringSession by remember { mutableStateOf(true) }
+  var splashDone by remember { mutableStateOf(false) }
 
   // Restore saved Supabase session once so reopening the app skips sign-in.
   LaunchedEffect(Unit) {
@@ -133,6 +135,8 @@ fun AppNavigation(
       userRepository.restoreSession()
     } catch (_: Exception) {
       // Stay signed out; user can sign in manually.
+    } finally {
+      isRestoringSession = false
     }
   }
 
@@ -318,8 +322,12 @@ fun AppNavigation(
         startDestination = Screen.Splash.route
       ) {
         composable(Screen.Splash.route) {
-          SplashScreen(
-            onFinish = {
+          SplashScreen(onFinish = { splashDone = true })
+
+          // Wait for both the splash animation and session restore before routing.
+          // Otherwise a slow network restore loses the race and forces sign-in again.
+          LaunchedEffect(splashDone, isRestoringSession, currentUser) {
+            if (splashDone && !isRestoringSession) {
               if (currentUser != null) {
                 navController.navigate(Screen.MainHome.route) {
                   popUpTo(Screen.Splash.route) { inclusive = true }
@@ -330,7 +338,7 @@ fun AppNavigation(
                 }
               }
             }
-          )
+          }
         }
 
         composable(Screen.Onboarding.route) {
