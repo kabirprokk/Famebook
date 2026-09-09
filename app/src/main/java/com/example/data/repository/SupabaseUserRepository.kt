@@ -73,16 +73,17 @@ class SupabaseUserRepository(
   }
 
   override suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
-    runCatching { accessToken?.let { api.request("POST", "auth/v1/logout", accessToken = it).use { } } }
-      .fold({
-        session.accessToken = null
-        session.refreshToken = null
-        session.currentUser = null
-        sessionStore?.clear()
-        _currentUser.value = null
-        _authState.value = AuthState.Unauthenticated
-        Result.success(Unit)
-      }, { failure(it.message ?: "Sign out failed.") })
+    val token = accessToken
+    // Best-effort remote sign-out; local session always clears so the user
+    // is signed out on this device even if the network call fails.
+    runCatching { token?.let { api.request("POST", "auth/v1/logout", accessToken = it).use { } } }
+    session.accessToken = null
+    session.refreshToken = null
+    session.currentUser = null
+    sessionStore?.clear()
+    _currentUser.value = null
+    _authState.value = AuthState.Unauthenticated
+    Result.success(Unit)
   }
 
   override suspend fun restoreSession(): Result<User> = withContext(Dispatchers.IO) {

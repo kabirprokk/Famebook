@@ -79,6 +79,7 @@ import com.example.presentation.common.BookingChatScreen
 import com.example.presentation.common.BookingDetailScreen
 import com.example.presentation.common.MessagesOverviewScreen
 import com.example.presentation.common.NotificationDialog
+import com.example.presentation.components.EmptyState
 import com.example.presentation.components.FameBookTopBar
 import com.example.presentation.crew.home.CrewHomeScreen
 import com.example.presentation.crew.requests.CrewRequestsScreen
@@ -409,7 +410,11 @@ fun AppNavigation(
                     bookingRepository = bookingRepository,
                     onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
                     onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
-                    onBookShootClick = { navController.navigate(Screen.BookWizard.route) }
+                    onBookShootClick = {
+                      scope.launch {
+                        snackbarHostState.showSnackbar("Only client accounts can book shoots.")
+                      }
+                    }
                   )
                 } else if ((!isCrew && page == 2) || (isCrew && page == 3)) {
                   MessagesOverviewScreen(
@@ -434,27 +439,42 @@ fun AppNavigation(
           }
         }
 
-        // BOOKING WIZARD
+        // BOOKING WIZARD — clients only. Crew and admin accounts are blocked here
+        // (the backend policy enforces this too) so only clients can book shoots.
         composable(Screen.BookWizard.route) {
           val user = currentUser
           if (user != null) {
-            BookShootWizardScreen(
-              currentUser = user,
-              onBackClick = { navController.popBackStack() },
-              onRequestCrewSubmit = { newBooking ->
-                scope.launch {
-                  val result = bookingRepository.createBooking(newBooking)
-                  if (result.isSuccess) {
-                    val created = result.getOrThrow()
-                    navController.navigate(Screen.SearchingCrew.createRoute(created.id)) {
-                      popUpTo(Screen.BookWizard.route) { inclusive = true }
+            if (user.role != UserRole.CLIENT) {
+              Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+              ) {
+                EmptyState(
+                  title = "CLIENTS ONLY",
+                  message = "Only client accounts can request crew. Your ${user.role.name.lowercase()} account cannot book shoots.",
+                  actionText = "GO BACK",
+                  onActionClick = { navController.popBackStack() }
+                )
+              }
+            } else {
+              BookShootWizardScreen(
+                currentUser = user,
+                onBackClick = { navController.popBackStack() },
+                onRequestCrewSubmit = { newBooking ->
+                  scope.launch {
+                    val result = bookingRepository.createBooking(newBooking)
+                    if (result.isSuccess) {
+                      val created = result.getOrThrow()
+                      navController.navigate(Screen.SearchingCrew.createRoute(created.id)) {
+                        popUpTo(Screen.BookWizard.route) { inclusive = true }
+                      }
+                    } else {
+                      snackbarHostState.showSnackbar("Failed to submit request: ${result.exceptionOrNull()?.message}")
                     }
-                  } else {
-                    snackbarHostState.showSnackbar("Failed to submit request: ${result.exceptionOrNull()?.message}")
                   }
                 }
-              }
-            )
+              )
+            }
           }
         }
 
@@ -465,7 +485,19 @@ fun AppNavigation(
         ) { backStackEntry ->
           val bookingId = backStackEntry.arguments?.getString("bookingId") ?: ""
           val user = currentUser
-          if (user != null) {
+          if (user != null && user.role != UserRole.CLIENT) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center
+            ) {
+              EmptyState(
+                title = "CLIENTS ONLY",
+                message = "Live request tracking is available on client accounts.",
+                actionText = "GO BACK",
+                onActionClick = { navController.popBackStack() }
+              )
+            }
+          } else if (user != null) {
             SearchingCrewScreen(
               bookingId = bookingId,
               currentUser = user,
@@ -502,7 +534,19 @@ fun AppNavigation(
           val bookingFlow = remember(bookingId) { bookingRepository.getBooking(bookingId) }
           val booking by bookingFlow.collectAsState(initial = null)
 
-          if (booking != null && user != null) {
+          if (user != null && user.role != UserRole.CLIENT) {
+            Box(
+              modifier = Modifier.fillMaxSize(),
+              contentAlignment = Alignment.Center
+            ) {
+              EmptyState(
+                title = "CLIENTS ONLY",
+                message = "Booking confirmations are available on client accounts.",
+                actionText = "GO BACK",
+                onActionClick = { navController.popBackStack() }
+              )
+            }
+          } else if (booking != null && user != null) {
             ConfirmationScreen(
               booking = booking!!,
               currentUser = user,

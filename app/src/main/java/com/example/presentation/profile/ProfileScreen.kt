@@ -224,7 +224,7 @@ fun ProfileScreen(
             ProfileInfoRow(icon = Icons.Default.Info, label = "Bio", value = currentUser.bio)
           }
 
-          if (crewProfile != null) {
+          if (currentUser.role == UserRole.CREW && crewProfile != null) {
             val cp = crewProfile!!
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = DarkBorder)

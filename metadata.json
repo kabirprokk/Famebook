@@ -1,6 +1,0 @@
-{
-  "name": "FameBook",
-  "description": "Professional shoot-booking platform for FameBros Studio connecting creators with production crew.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
