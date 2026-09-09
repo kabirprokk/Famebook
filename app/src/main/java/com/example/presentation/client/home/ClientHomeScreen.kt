@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +50,7 @@ import com.example.domain.model.ShootType
 import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
+import com.example.presentation.components.CardEntrance
 import com.example.presentation.components.CleanBookingItem
 import com.example.presentation.components.HeroSection
 import com.example.presentation.components.SectionHeader
@@ -229,11 +231,13 @@ fun ClientHomeScreen(
         SectionHeader(title = "RECENT")
         Spacer(modifier = Modifier.height(8.dp))
       }
-      items(recentBookings) { booking ->
-        CleanBookingItem(
-          booking = booking,
-          onClick = { onBookingClick(booking.id) }
-        )
+      itemsIndexed(recentBookings) { index, booking ->
+        CardEntrance(index = index) {
+          CleanBookingItem(
+            booking = booking,
+            onClick = { onBookingClick(booking.id) }
+          )
+        }
         Spacer(modifier = Modifier.height(10.dp))
       }
     }

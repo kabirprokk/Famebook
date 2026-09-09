@@ -1,7 +1,10 @@
 package com.example.presentation.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -893,3 +897,26 @@ fun EmptyState(
 // Backwards compatibility alias for components used elsewhere
 @Composable
 fun StatusChip(status: BookingStatus) = SimpleStatusBadge(status)
+
+/**
+ * Light one-shot entrance for list cards: a subtle rise + fade, staggered by
+ * index so lists feel alive. Runs once per composition with no ongoing cost.
+ */
+@Composable
+fun CardEntrance(
+  index: Int = 0,
+  modifier: Modifier = Modifier,
+  content: @Composable () -> Unit
+) {
+  var visible by remember { mutableStateOf(false) }
+  LaunchedEffect(Unit) { visible = true }
+  val stagger = (index * 70).coerceAtMost(420)
+  AnimatedVisibility(
+    visible = visible,
+    enter = fadeIn(animationSpec = tween(300, delayMillis = stagger)) +
+      slideInVertically(animationSpec = tween(300, delayMillis = stagger)) { it / 10 },
+    modifier = modifier
+  ) {
+    content()
+  }
+}

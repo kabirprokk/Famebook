@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
+import com.example.presentation.components.CardEntrance
 import com.example.presentation.components.CleanBookingItem
 import com.example.presentation.components.EmptyState
 import com.example.presentation.components.SectionHeader
@@ -79,12 +81,14 @@ fun ClientBookingsScreen(
           )
         }
 
-        items(activeShoots) { booking ->
-          UpcomingBookingCard(
-            booking = booking,
-            onClick = { onBookingClick(booking.id) },
-            onOpenChat = onOpenChat
-          )
+        itemsIndexed(activeShoots) { index, booking ->
+          CardEntrance(index = index) {
+            UpcomingBookingCard(
+              booking = booking,
+              onClick = { onBookingClick(booking.id) },
+              onOpenChat = onOpenChat
+            )
+          }
           Spacer(modifier = Modifier.height(14.dp))
         }
       }
@@ -100,11 +104,13 @@ fun ClientBookingsScreen(
           )
         }
 
-        items(pastShoots) { booking ->
-          CleanBookingItem(
-            booking = booking,
-            onClick = { onBookingClick(booking.id) }
-          )
+        itemsIndexed(pastShoots) { index, booking ->
+          CardEntrance(index = index) {
+            CleanBookingItem(
+              booking = booking,
+              onClick = { onBookingClick(booking.id) }
+            )
+          }
           Spacer(modifier = Modifier.height(8.dp))
         }
       }

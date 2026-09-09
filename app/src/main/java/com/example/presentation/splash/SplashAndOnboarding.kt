@@ -1,10 +1,11 @@
 package com.example.presentation.splash
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.Image
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -40,10 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -56,8 +56,6 @@ import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkCard
 import com.example.ui.theme.ObsidianBlack
 import com.example.ui.theme.PureWhite
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -66,47 +64,68 @@ import kotlinx.coroutines.launch
 fun SplashScreen(
   onFinish: () -> Unit
 ) {
-  var visible by remember { mutableStateOf(false) }
+  var line1Visible by remember { mutableStateOf(false) }
+  var line2Visible by remember { mutableStateOf(false) }
+  var fadeOut by remember { mutableStateOf(false) }
 
   LaunchedEffect(Unit) {
-    visible = true
-    // Keep branding visible briefly without making every launch feel blocked.
-    delay(400)
+    delay(250)
+    line1Visible = true
+    delay(800)
+    line2Visible = true
+    delay(1350)
+    fadeOut = true
+    delay(600)
     onFinish()
   }
+
+  val screenAlpha by animateFloatAsState(
+    targetValue = if (fadeOut) 0f else 1f,
+    animationSpec = tween(durationMillis = 550),
+    label = "intro_fade"
+  )
 
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(ObsidianBlack),
+      .background(ObsidianBlack)
+      .graphicsLayer { alpha = screenAlpha },
     contentAlignment = Alignment.Center
   ) {
-    AnimatedVisibility(
-      visible = visible,
-      enter = fadeIn(animationSpec = tween(700)) + scaleIn(initialScale = 0.92f, animationSpec = tween(700))
+    Column(
+      horizontalAlignment = Alignment.CenterHorizontally,
+      verticalArrangement = Arrangement.Center
     ) {
-      Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+      AnimatedVisibility(
+        visible = line1Visible,
+        enter = fadeIn(animationSpec = tween(600)) +
+          slideInVertically(animationSpec = tween(600)) { it / 3 }
       ) {
-        // FameBook brand logo
-        Image(
-          painter = painterResource(id = R.drawable.famebook_logo),
-          contentDescription = "FameBook Logo",
-          modifier = Modifier
-            .size(148.dp)
-            .clip(RoundedCornerShape(32.dp))
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
         Text(
-          text = "PROFESSIONAL SHOOT-BOOKING PLATFORM",
-          style = MaterialTheme.typography.labelSmall.copy(
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 2.sp
+          text = "FAMEBROS PRESENTS",
+          style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 4.sp
           ),
-          color = TextSecondary
+          color = AmberGold
+        )
+      }
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      AnimatedVisibility(
+        visible = line2Visible,
+        enter = fadeIn(animationSpec = tween(700)) +
+          slideInVertically(animationSpec = tween(700)) { it / 3 } +
+          scaleIn(initialScale = 0.94f, animationSpec = tween(700))
+      ) {
+        Text(
+          text = "FameBook",
+          style = MaterialTheme.typography.displayLarge.copy(
+            fontWeight = FontWeight.Black,
+            letterSpacing = (-1).sp
+          ),
+          color = PureWhite
         )
       }
     }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +42,7 @@ import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
 import com.example.domain.model.UserRole
 import com.example.domain.repository.BookingRepository
+import com.example.presentation.components.CardEntrance
 import com.example.presentation.components.EmptyState
 import com.example.presentation.components.SectionHeader
 import com.example.ui.theme.AmberGold
@@ -90,11 +92,11 @@ fun MessagesOverviewScreen(
         )
       }
     } else {
-      items(activeChats) { booking ->
+      itemsIndexed(activeChats) { index, booking ->
         val otherPartyName = if (currentUser.role == UserRole.CREW) {
           booking.clientName
         } else {
-          booking.assignedCrewName ?: "Marcus Chen"
+          booking.assignedCrewName ?: "Pending Assignment"
         }
 
         val otherPartyRole = if (currentUser.role == UserRole.CREW) {
@@ -103,16 +105,17 @@ fun MessagesOverviewScreen(
           booking.assignedCrewRole ?: "Lead Cinematographer"
         }
 
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = DarkCard,
-          border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp)
-            .clickable { onOpenChat(booking.id) }
-            .testTag("chat_row_${booking.id}")
-        ) {
+        CardEntrance(index = index) {
+          Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = DarkCard,
+            border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(vertical = 5.dp)
+              .clickable { onOpenChat(booking.id) }
+              .testTag("chat_row_${booking.id}")
+          ) {
           Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -153,6 +156,7 @@ fun MessagesOverviewScreen(
               tint = TextMuted,
               modifier = Modifier.size(18.dp)
             )
+          }
           }
         }
       }

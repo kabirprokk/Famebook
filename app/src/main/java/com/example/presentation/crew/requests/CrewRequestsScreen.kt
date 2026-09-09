@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,6 +51,7 @@ import com.example.domain.model.Booking
 import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
+import com.example.presentation.components.CardEntrance
 import com.example.presentation.components.PrimaryGoldButton
 import com.example.presentation.components.SecondaryDarkButton
 import com.example.ui.theme.AmberGold
@@ -146,8 +148,9 @@ fun CrewRequestsScreen(
         }
       }
     } else {
-      items(incomingRequests, key = { it.id }) { req ->
-        CrewRequestCard(
+      itemsIndexed(incomingRequests, key = { _, req -> req.id }) { index, req ->
+        CardEntrance(index = index) {
+          CrewRequestCard(
           booking = req,
           onAccept = {
             scope.launch {
@@ -166,7 +169,8 @@ fun CrewRequestsScreen(
             }
           },
           onClick = { onBookingClick(req.id) }
-        )
+          )
+        }
         Spacer(modifier = Modifier.height(16.dp))
       }
     }
