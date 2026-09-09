@@ -19,8 +19,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ExitToApp
@@ -90,6 +96,7 @@ fun ProfileScreen(
 
   var showEditDialog by remember { mutableStateOf(false) }
   var showLogoutConfirm by remember { mutableStateOf(false) }
+  var showHelpDialog by remember { mutableStateOf(false) }
   var notificationsEnabled by remember { mutableStateOf(true) }
 
   LazyColumn(
@@ -351,12 +358,54 @@ fun ProfileScreen(
                   color = PureWhite
                 )
                 Text(
-                  text = "Release Build v1.0 • Verified Studio",
+                  text = "OSIEN v1A • Verified Studio",
                   style = MaterialTheme.typography.bodySmall,
                   color = TextMuted
                 )
               }
             }
+          }
+
+          Spacer(modifier = Modifier.height(14.dp))
+          HorizontalDivider(color = DarkBorder)
+          Spacer(modifier = Modifier.height(6.dp))
+
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .clickable { showHelpDialog = true }
+              .padding(vertical = 8.dp)
+              .testTag("profile_help_center"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                tint = AmberGold,
+                modifier = Modifier.size(20.dp)
+              )
+              Spacer(modifier = Modifier.width(12.dp))
+              Column {
+                Text(
+                  text = "Help Center",
+                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                  color = PureWhite
+                )
+                Text(
+                  text = "FAQs, guides & support",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = TextMuted
+                )
+              }
+            }
+            Icon(
+              imageVector = Icons.Default.ChevronRight,
+              contentDescription = "Open help center",
+              tint = TextMuted,
+              modifier = Modifier.size(18.dp)
+            )
           }
         }
       }
@@ -474,6 +523,35 @@ fun ProfileScreen(
     )
   }
 
+  // Help Center Dialog
+  if (showHelpDialog) {
+    AlertDialog(
+      onDismissRequest = { showHelpDialog = false },
+      containerColor = DarkSurface,
+      title = {
+        Text("Help Center", color = PureWhite, fontWeight = FontWeight.Bold)
+      },
+      text = {
+        Column(
+          verticalArrangement = Arrangement.spacedBy(4.dp),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          helpFaqs.forEach { faq ->
+            HelpFaqItem(question = faq.first, answer = faq.second)
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = { showHelpDialog = false },
+          colors = ButtonDefaults.buttonColors(containerColor = AmberGold, contentColor = ObsidianBlack)
+        ) {
+          Text("Close", fontWeight = FontWeight.Bold)
+        }
+      }
+    )
+  }
+
   // Logout Confirmation Dialog
   if (showLogoutConfirm) {
     AlertDialog(
@@ -509,6 +587,64 @@ fun ProfileScreen(
       }
     )
   }
+}
+
+private val helpFaqs = listOf(
+  "How do I book a shoot?" to
+    "Go to Home, tap Book a Shoot, then follow the six steps: shoot type, date and time, location, crew needed, details, and review. Tap Request Crew to send it to available crew.",
+  "When is my booking confirmed?" to
+    "Your booking is confirmed the moment a crew member accepts your request. You will see the assigned crew and can open chat from the booking.",
+  "How do I cancel a request?" to
+    "Open the booking from Home or Bookings and cancel it there. Cancellation is available while the request is still open.",
+  "How do crew receive my request?" to
+    "Available crew instantly get a request popup with your shoot details. The first crew member to accept is assigned to your shoot.",
+  "How do I contact my crew?" to
+    "Once a shoot is confirmed, open the booking and use Chat or Call to coordinate directly with your assigned crew.",
+  "How do account roles work?" to
+    "Every new account starts as a client. Crew and admin access is assigned by the studio and cannot be changed from inside the app."
+)
+
+@Composable
+private fun HelpFaqItem(question: String, answer: String) {
+  var expanded by remember { mutableStateOf(false) }
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clickable { expanded = !expanded }
+      .padding(vertical = 8.dp)
+  ) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Text(
+        text = question,
+        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+        color = PureWhite,
+        modifier = Modifier.weight(1f)
+      )
+      Icon(
+        imageVector = Icons.Default.ChevronRight,
+        contentDescription = if (expanded) "Collapse" else "Expand",
+        tint = AmberGold,
+        modifier = Modifier.size(16.dp)
+      )
+    }
+    AnimatedVisibility(
+      visible = expanded,
+      enter = fadeIn() + expandVertically(),
+      exit = fadeOut() + shrinkVertically()
+    ) {
+      Text(
+        text = answer,
+        style = MaterialTheme.typography.bodySmall,
+        color = TextSecondary,
+        modifier = Modifier.padding(top = 6.dp)
+      )
+    }
+  }
+  HorizontalDivider(color = DarkBorder)
 }
 
 @Composable
