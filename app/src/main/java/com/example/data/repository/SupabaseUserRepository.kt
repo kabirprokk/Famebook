@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.BuildConfig
 import com.example.data.remote.SupabaseHttpClient
+import android.net.Uri
 import com.example.domain.model.AuthState
 import com.example.domain.model.User
 import com.example.domain.model.UserRole
@@ -46,7 +47,8 @@ class SupabaseUserRepository(
       .put("password", password)
       .put("data", JSONObject().put("full_name", name.trim()))
     runCatching {
-      api.request("POST", "auth/v1/signup", payload.toString()).use { response ->
+      val redirect = Uri.encode("famebook://auth/callback")
+      api.request("POST", "auth/v1/signup?redirect_to=$redirect", payload.toString()).use { response ->
         if (!response.isSuccessful) error(response.errorMessage())
         val json = JSONObject(response.body?.string().orEmpty())
         val session = json.optJSONObject("session")
