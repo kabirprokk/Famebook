@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -64,8 +65,13 @@ class SupabaseCrewRepository(
   private val _profiles = MutableStateFlow<List<CrewProfile>>(emptyList())
   override val crewProfiles: StateFlow<List<CrewProfile>> = _profiles.asStateFlow()
 
-  override fun getCrewProfile(crewId: String): Flow<CrewProfile?> = profiles().map { it.find { p -> p.id == crewId || p.userId == crewId } }
-  override fun getCrewProfileByUserId(userId: String): Flow<CrewProfile?> = profiles().map { it.find { p -> p.userId == userId } }
+  override fun getCrewProfile(crewId: String): Flow<CrewProfile?> =
+    _profiles.map { list -> list.find { p -> p.id == crewId || p.userId == crewId } }
+      .onStart { runCatching { refreshProfiles() } }
+
+  override fun getCrewProfileByUserId(userId: String): Flow<CrewProfile?> =
+    _profiles.map { list -> list.find { p -> p.userId == userId } }
+      .onStart { runCatching { refreshProfiles() } }
 
   override suspend fun setAvailability(crewId: String, isAvailable: Boolean) {
     update(crewId, JSONObject().put("is_available", isAvailable))
@@ -85,20 +91,54 @@ class SupabaseCrewRepository(
       if (!response.isSuccessful) error(responseError(response))
       val rows = JSONArray(response.body?.string().orEmpty())
       if (rows.length() == 0) error("Crew profile was not returned by Supabase.")
-      crewFromJson(rows.getJSONObject(0))
     }
+    val refreshed = refreshProfiles()
+    refreshed.find { it.userId == profile.userId } ?: error("Crew profile was not returned by Supabase.")
   }
 
-  private fun profiles(): Flow<List<CrewProfile>> = flow {
+  private fun profiles(): Flow<List<CrewProfile>> = _profiles
+    .onStart { runCatching { refreshProfiles() } }
+    .flowOn(Dispatchers.IO)
+
+  private suspend fun refreshProfiles(): List<CrewProfile> {
     val result = runCatching {
-      api.request("GET", "rest/v1/crew_profiles?select=*,profile:profiles!crew_profiles_user_id_fkey(*)&order=created_at.desc", accessToken = token()).use { response ->
+      val crewRows = api.request(
+        "GET",
+        "rest/v1/crew_profiles?select=*&order=created_at.desc",
+        accessToken = token()
+      ).use { response ->
         if (!response.isSuccessful) error(responseError(response))
-        JSONArray(response.body?.string().orEmpty()).let { array -> List(array.length()) { crewFromJson(array.getJSONObject(it)) } }
+        JSONArray(response.body?.string().orEmpty())
+      }
+      if (crewRows.length() == 0) return emptyList()
+      val ids = List(crewRows.length()) { crewRows.getJSONObject(it).optString("user_id") }
+        .filter { it.isNotBlank() }
+      val usersById = if (ids.isEmpty()) emptyMap() else {
+        api.request(
+          "GET",
+          "rest/v1/profiles?id=in.(${ids.joinToString(",")})&select=*",
+          accessToken = token()
+        ).use { response ->
+          if (!response.isSuccessful) emptyMap()
+          else {
+            val rows = JSONArray(response.body?.string().orEmpty())
+            buildMap {
+              for (i in 0 until rows.length()) {
+                val user = rows.getJSONObject(i)
+                put(user.optString("id"), user)
+              }
+            }
+          }
+        }
+      }
+      List(crewRows.length()) { i ->
+        val crew = crewRows.getJSONObject(i)
+        crewFromJson(crew, usersById[crew.optString("user_id")] ?: JSONObject())
       }
     }.getOrElse { emptyList() }
     _profiles.value = result
-    emit(result)
-  }.flowOn(Dispatchers.IO)
+    return result
+  }
 
   private suspend fun update(id: String, body: JSONObject) {
     // Never throw: availability toggle runs from UI scope and must not crash the app.
@@ -124,15 +164,16 @@ class SupabaseCrewRepository(
         }
       }
     }
-    runCatching { profiles().collect { } }
+    runCatching { refreshProfiles() }
   }
 
-  private fun crewFromJson(json: JSONObject): CrewProfile {
-    val user = json.optJSONObject("profile") ?: JSONObject()
-    return CrewProfile(json.string("user_id"), json.string("user_id"), user.string("full_name", "FameBook Crew"),
+  private fun crewFromJson(json: JSONObject, user: JSONObject = JSONObject()): CrewProfile {
+    val embedded = json.optJSONObject("profile")
+    val profileUser = embedded ?: user
+    return CrewProfile(json.string("user_id"), json.string("user_id"), profileUser.string("full_name", "FameBook Crew"),
       enumValue(json.string("primary_role"), CrewRole.PHOTOGRAPHER), json.arrayStrings("secondary_roles").mapNotNull { enumValueOrNull<CrewRole>(it) },
       json.arrayStrings("skills"), json.optInt("experience_years"), json.string("gear_summary"), json.optDouble("rating"),
-      json.optInt("total_completed_shoots"), json.optBoolean("is_available"), user.string("phone"), user.string("email"), user.nullableString("avatar_url"))
+      json.optInt("total_completed_shoots"), json.optBoolean("is_available"), profileUser.string("phone"), profileUser.string("email"), profileUser.nullableString("avatar_url"))
   }
 }
 
