@@ -1,5 +1,11 @@
 package com.example.presentation.profile
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,7 +99,24 @@ fun ProfileScreen(
   onLogout: () -> Unit
 ) {
   val scope = rememberCoroutineScope()
+  val context = LocalContext.current
   val crewProfile by crewRepository.getCrewProfileByUserId(currentUser.id).collectAsState(initial = null)
+
+  val openEmail: (String) -> Unit = { email ->
+    runCatching {
+      context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")))
+    }
+  }
+  val openLink: (String) -> Unit = { url ->
+    runCatching {
+      context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
+  }
+  val copyText: (String, String) -> Unit = { text, message ->
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("FameBook", text))
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+  }
 
   var showEditDialog by remember { mutableStateOf(false) }
   var showLogoutConfirm by remember { mutableStateOf(false) }
@@ -539,6 +563,56 @@ fun ProfileScreen(
           helpFaqs.forEach { faq ->
             HelpFaqItem(question = faq.first, answer = faq.second)
           }
+
+          Spacer(modifier = Modifier.height(8.dp))
+          Text(
+            text = "CONTACT",
+            style = MaterialTheme.typography.labelSmall.copy(
+              fontWeight = FontWeight.Bold,
+              letterSpacing = 1.sp
+            ),
+            color = AmberGold
+          )
+          Spacer(modifier = Modifier.height(4.dp))
+
+          Text(
+            text = "Owner Contact",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = PureWhite
+          )
+          HelpContactRow(
+            label = "Gmail",
+            value = "famebrosstudio.franchise1@gmail.com",
+            onClick = { openEmail("famebrosstudio.franchise1@gmail.com") }
+          )
+          HelpContactRow(
+            label = "Instagram",
+            value = "Famebrosstudio",
+            onClick = { openLink("https://instagram.com/famebrosstudio") }
+          )
+
+          Spacer(modifier = Modifier.height(8.dp))
+
+          Text(
+            text = "Developer Contact",
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+            color = PureWhite
+          )
+          HelpContactRow(
+            label = "Gmail",
+            value = "kabirsayed.k@gmail.com",
+            onClick = { openEmail("kabirsayed.k@gmail.com") }
+          )
+          HelpContactRow(
+            label = "Instagram",
+            value = "kabir.found.nebula",
+            onClick = { openLink("https://instagram.com/kabir.found.nebula") }
+          )
+          HelpContactRow(
+            label = "Discord",
+            value = "Kabirprokk",
+            onClick = { copyText("Kabirprokk", "Discord username copied") }
+          )
         }
       },
       confirmButton = {
@@ -603,6 +677,32 @@ private val helpFaqs = listOf(
   "How do account roles work?" to
     "Every new account starts as a client. Crew and admin access is assigned by the studio and cannot be changed from inside the app."
 )
+
+@Composable
+private fun HelpContactRow(label: String, value: String, onClick: () -> Unit) {
+  Row(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clickable(onClick = onClick)
+      .padding(vertical = 6.dp),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(
+      text = label,
+      style = MaterialTheme.typography.bodySmall,
+      color = TextMuted
+    )
+    Spacer(modifier = Modifier.width(12.dp))
+    Text(
+      text = value,
+      style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+      color = AmberGold,
+      textAlign = androidx.compose.ui.text.style.TextAlign.End,
+      modifier = Modifier.weight(1f)
+    )
+  }
+}
 
 @Composable
 private fun HelpFaqItem(question: String, answer: String) {

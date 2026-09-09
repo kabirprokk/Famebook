@@ -127,7 +127,7 @@ fun SplashScreen(
             slideInVertically(animationSpec = tween(600)) { it / 3 }
         ) {
           Text(
-            text = "FAMEBROS PRESENTS",
+            text = "FAMEBROS STUDIO PRESENTS",
             style = MaterialTheme.typography.labelLarge.copy(
               fontWeight = FontWeight.Bold,
               letterSpacing = 4.sp
