@@ -2,6 +2,7 @@ package com.example.presentation.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,9 +63,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.ShootType
@@ -117,24 +120,13 @@ fun FameBookTopBar(
           }
         }
       } else {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = "FAME",
-            style = MaterialTheme.typography.headlineMedium.copy(
-              fontWeight = FontWeight.Black,
-              letterSpacing = 1.sp
-            ),
-            color = PureWhite
-          )
-          Text(
-            text = "BOOK",
-            style = MaterialTheme.typography.headlineMedium.copy(
-              fontWeight = FontWeight.Black,
-              letterSpacing = 1.sp
-            ),
-            color = AmberGold
-          )
-        }
+        Image(
+          painter = painterResource(id = R.drawable.famebook_logo),
+          contentDescription = "FameBook",
+          modifier = Modifier
+            .height(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+        )
       }
     },
     navigationIcon = {

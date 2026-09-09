@@ -1,5 +1,6 @@
 package com.example.presentation.auth
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,12 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.domain.model.User
 import com.example.domain.repository.UserRepository
 import com.example.presentation.components.PrimaryGoldButton
@@ -113,44 +116,13 @@ fun AuthScreen(
       Spacer(modifier = Modifier.height(24.dp))
 
       // Brand Identity
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
-      ) {
-        Box(
-          modifier = Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(AmberGold),
-          contentAlignment = Alignment.Center
-        ) {
-          Icon(
-            imageVector = Icons.Default.Videocam,
-            contentDescription = "FameBook Logo",
-            tint = ObsidianBlack,
-            modifier = Modifier.size(26.dp)
-          )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-          Text(
-            text = "FAMEBOOK",
-            style = MaterialTheme.typography.titleLarge.copy(
-              fontWeight = FontWeight.Black,
-              letterSpacing = 2.sp
-            ),
-            color = PureWhite
-          )
-          Text(
-            text = "BY FAMEBROS STUDIO",
-            style = MaterialTheme.typography.labelSmall.copy(
-              fontWeight = FontWeight.Bold,
-              letterSpacing = 1.sp
-            ),
-            color = AmberGold
-          )
-        }
-      }
+      Image(
+        painter = painterResource(id = R.drawable.famebook_logo),
+        contentDescription = "FameBook Logo",
+        modifier = Modifier
+          .height(84.dp)
+          .clip(RoundedCornerShape(20.dp))
+      )
 
       Spacer(modifier = Modifier.height(36.dp))
 

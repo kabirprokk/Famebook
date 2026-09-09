@@ -2,6 +2,10 @@ package com.example.presentation.navigation
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,6 +21,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
@@ -84,15 +90,29 @@ import com.example.ui.theme.ObsidianBlack
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
+private data class MainTab(val label: String, val icon: ImageVector, val testTag: String)
+
+private fun tabsForRole(role: UserRole?): List<MainTab> = when (role) {
+  UserRole.CREW -> listOf(
+    MainTab("Home", Icons.Default.Home, "nav_tab_home"),
+    MainTab("Requests", Icons.Default.Videocam, "nav_tab_requests"),
+    MainTab("Schedule", Icons.Default.CalendarToday, "nav_tab_schedule"),
+    MainTab("Messages", Icons.Default.Chat, "nav_tab_messages"),
+    MainTab("Profile", Icons.Default.Person, "nav_tab_profile")
+  )
+  else -> listOf(
+    MainTab("Home", Icons.Default.Home, "nav_tab_home"),
+    MainTab("Bookings", Icons.Default.CalendarToday, "nav_tab_bookings"),
+    MainTab("Messages", Icons.Default.Chat, "nav_tab_messages"),
+    MainTab("Profile", Icons.Default.Person, "nav_tab_profile")
+  )
+}
+
 sealed class Screen(val route: String) {
   object Splash : Screen("splash")
   object Onboarding : Screen("onboarding")
   object Auth : Screen("auth")
-  object MainHome : Screen("main_home")
-  object CrewRequests : Screen("crew_requests")
-  object MyBookings : Screen("my_bookings")
-  object Messages : Screen("messages")
-  object Profile : Screen("profile")
+  object MainTabs : Screen("main_tabs")
   object BookWizard : Screen("book_wizard")
   object SearchingCrew : Screen("searching_crew/{bookingId}") {
     fun createRoute(bookingId: String) = "searching_crew/$bookingId"
@@ -128,6 +148,11 @@ fun AppNavigation(
   var showNotificationDialog by remember { mutableStateOf(false) }
   var isRestoringSession by remember { mutableStateOf(true) }
   var splashDone by remember { mutableStateOf(false) }
+
+  // Swipeable main tabs. One pager hosts every tab so left/right swipes
+  // move between tabs without extra navigation transactions.
+  val tabs = remember(currentUser?.role) { tabsForRole(currentUser?.role) }
+  val pagerState = rememberPagerState(pageCount = { maxOf(tabs.size, 1) })
 
   // Restore saved Supabase session once so reopening the app skips sign-in.
   LaunchedEffect(Unit) {
@@ -167,13 +192,7 @@ fun AppNavigation(
   val navBackStackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = navBackStackEntry?.destination?.route
 
-  val isBottomBarVisible = currentRoute in listOf(
-    Screen.MainHome.route,
-    Screen.CrewRequests.route,
-    Screen.MyBookings.route,
-    Screen.Messages.route,
-    Screen.Profile.route
-  ) && currentUser != null
+  val isBottomBarVisible = currentRoute == Screen.MainTabs.route && currentUser != null
 
   Scaffold(
     containerColor = ObsidianBlack,
@@ -199,7 +218,7 @@ fun AppNavigation(
             shape = RoundedCornerShape(28.dp),
             color = Color(0xF2131622),
             border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0x33FFFFFF)),
-            shadowElevation = 16.dp,
+            shadowElevation = 8.dp,
             modifier = Modifier
               .fillMaxWidth()
               .height(64.dp)
@@ -224,87 +243,19 @@ fun AppNavigation(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
               ) {
-                // Tab 1: Home
-                FloatingNavItem(
-                  selected = currentRoute == Screen.MainHome.route,
-                  icon = Icons.Default.Home,
-                  label = "Home",
-                  testTag = "nav_tab_home",
-                  onClick = {
-                    if (currentRoute != Screen.MainHome.route) {
-                      navController.navigate(Screen.MainHome.route) {
-                        popUpTo(Screen.MainHome.route) { inclusive = true }
-                      }
-                    }
-                  }
-                )
-
-                if (currentUser?.role == UserRole.CREW) {
-                  // Crew Tab 2: Requests
+                tabs.forEachIndexed { index, tab ->
                   FloatingNavItem(
-                    selected = currentRoute == Screen.CrewRequests.route,
-                    icon = Icons.Default.Videocam,
-                    label = "Requests",
-                    testTag = "nav_tab_requests",
+                    selected = pagerState.currentPage == index,
+                    icon = tab.icon,
+                    label = tab.label,
+                    testTag = tab.testTag,
                     onClick = {
-                      if (currentRoute != Screen.CrewRequests.route) {
-                        navController.navigate(Screen.CrewRequests.route)
-                      }
-                    }
-                  )
-
-                  // Crew Tab 3: Schedule
-                  FloatingNavItem(
-                    selected = currentRoute == Screen.MyBookings.route,
-                    icon = Icons.Default.CalendarToday,
-                    label = "Schedule",
-                    testTag = "nav_tab_schedule",
-                    onClick = {
-                      if (currentRoute != Screen.MyBookings.route) {
-                        navController.navigate(Screen.MyBookings.route)
-                      }
-                    }
-                  )
-                } else {
-                  // Client Tab 2: Bookings
-                  FloatingNavItem(
-                    selected = currentRoute == Screen.MyBookings.route,
-                    icon = Icons.Default.CalendarToday,
-                    label = "Bookings",
-                    testTag = "nav_tab_bookings",
-                    onClick = {
-                      if (currentRoute != Screen.MyBookings.route) {
-                        navController.navigate(Screen.MyBookings.route)
+                      if (pagerState.currentPage != index) {
+                        scope.launch { pagerState.animateScrollToPage(index) }
                       }
                     }
                   )
                 }
-
-                // Tab: Messages
-                FloatingNavItem(
-                  selected = currentRoute == Screen.Messages.route,
-                  icon = Icons.Default.Chat,
-                  label = "Messages",
-                  testTag = "nav_tab_messages",
-                  onClick = {
-                    if (currentRoute != Screen.Messages.route) {
-                      navController.navigate(Screen.Messages.route)
-                    }
-                  }
-                )
-
-                // Tab: Profile
-                FloatingNavItem(
-                  selected = currentRoute == Screen.Profile.route,
-                  icon = Icons.Default.Person,
-                  label = "Profile",
-                  testTag = "nav_tab_profile",
-                  onClick = {
-                    if (currentRoute != Screen.Profile.route) {
-                      navController.navigate(Screen.Profile.route)
-                    }
-                  }
-                )
               }
             }
           }
@@ -319,7 +270,11 @@ fun AppNavigation(
     ) {
       NavHost(
         navController = navController,
-        startDestination = Screen.Splash.route
+        startDestination = Screen.Splash.route,
+        enterTransition = { fadeIn(animationSpec = tween(180)) + slideInHorizontally(animationSpec = tween(200)) { it / 5 } },
+        exitTransition = { fadeOut(animationSpec = tween(150)) },
+        popEnterTransition = { fadeIn(animationSpec = tween(180)) },
+        popExitTransition = { fadeOut(animationSpec = tween(150)) + slideOutHorizontally(animationSpec = tween(200)) { it / 5 } }
       ) {
         composable(Screen.Splash.route) {
           SplashScreen(onFinish = { splashDone = true })
@@ -329,7 +284,7 @@ fun AppNavigation(
           LaunchedEffect(splashDone, isRestoringSession, currentUser) {
             if (splashDone && !isRestoringSession) {
               if (currentUser != null) {
-                navController.navigate(Screen.MainHome.route) {
+                navController.navigate(Screen.MainTabs.route) {
                   popUpTo(Screen.Splash.route) { inclusive = true }
                 }
               } else {
@@ -355,15 +310,16 @@ fun AppNavigation(
           AuthScreen(
             userRepository = userRepository,
             onLoginSuccess = { user ->
-              navController.navigate(Screen.MainHome.route) {
+              navController.navigate(Screen.MainTabs.route) {
                 popUpTo(Screen.Auth.route) { inclusive = true }
               }
             }
           )
         }
 
-        // Main Tab 1: Home (Client / Crew / Admin)
-        composable(Screen.MainHome.route) {
+        // Swipeable main tabs: Home / Requests-or-Bookings / Messages / Profile.
+        // HorizontalPager gives left/right swipe; the bottom bar animates to pages.
+        composable(Screen.MainTabs.route) {
           val user = currentUser
           if (user == null) {
             LaunchedEffect(Unit) {
@@ -372,95 +328,90 @@ fun AppNavigation(
               }
             }
           } else {
-            when (user.role) {
-              UserRole.CLIENT -> {
-                ClientHomeScreen(
-                  currentUser = user,
-                  bookingRepository = bookingRepository,
-                  crewRepository = crewRepository,
-                  onBookShootClick = { navController.navigate(Screen.BookWizard.route) },
-                  onActiveRequestClick = { id -> navController.navigate(Screen.SearchingCrew.createRoute(id)) },
-                  onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
-                  onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
-                )
-              }
-              UserRole.CREW -> {
-                CrewHomeScreen(
-                  currentUser = user,
-                  bookingRepository = bookingRepository,
-                  crewRepository = crewRepository,
-                  snackbarHostState = snackbarHostState,
-                  onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
-                  onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
-                )
-              }
-              UserRole.ADMIN -> {
-                AdminOverviewScreen(
-                  currentUser = user,
-                  bookingRepository = bookingRepository,
-                  crewRepository = crewRepository,
-                  userRepository = userRepository,
-                  onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) }
-                )
-              }
-            }
-          }
-        }
-
-        // Main Tab 2: Bookings (or Schedule for Crew)
-        composable(Screen.MyBookings.route) {
-          val user = currentUser
-          if (user != null) {
-            ClientBookingsScreen(
-              currentUser = user,
-              bookingRepository = bookingRepository,
-              onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
-              onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
-              onBookShootClick = { navController.navigate(Screen.BookWizard.route) }
-            )
-          }
-        }
-
-        // Crew Tab: Requests
-        composable(Screen.CrewRequests.route) {
-          val user = currentUser
-          if (user != null) {
-            CrewRequestsScreen(
-              currentUser = user,
-              bookingRepository = bookingRepository,
-              crewRepository = crewRepository,
-              snackbarHostState = snackbarHostState,
-              onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) }
-            )
-          }
-        }
-
-        // Main Tab 3: Messages
-        composable(Screen.Messages.route) {
-          val user = currentUser
-          if (user != null) {
-            MessagesOverviewScreen(
-              currentUser = user,
-              bookingRepository = bookingRepository,
-              onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
-            )
-          }
-        }
-
-        // Main Tab 4: Profile
-        composable(Screen.Profile.route) {
-          val user = currentUser
-          if (user != null) {
-            ProfileScreen(
-              currentUser = user,
-              userRepository = userRepository,
-              crewRepository = crewRepository,
-              onLogout = {
-                navController.navigate(Screen.Auth.route) {
-                  popUpTo(0) { inclusive = true }
+            val isCrew = user.role == UserRole.CREW
+            HorizontalPager(
+              state = pagerState,
+              modifier = Modifier.fillMaxSize(),
+              key = { index -> "${user.role.name}_tab_$index" }
+            ) { page ->
+              when (page) {
+                0 -> when (user.role) {
+                  UserRole.CLIENT -> {
+                    ClientHomeScreen(
+                      currentUser = user,
+                      bookingRepository = bookingRepository,
+                      crewRepository = crewRepository,
+                      onBookShootClick = { navController.navigate(Screen.BookWizard.route) },
+                      onActiveRequestClick = { id -> navController.navigate(Screen.SearchingCrew.createRoute(id)) },
+                      onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
+                      onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
+                    )
+                  }
+                  UserRole.CREW -> {
+                    CrewHomeScreen(
+                      currentUser = user,
+                      bookingRepository = bookingRepository,
+                      crewRepository = crewRepository,
+                      snackbarHostState = snackbarHostState,
+                      onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
+                      onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
+                    )
+                  }
+                  UserRole.ADMIN -> {
+                    AdminOverviewScreen(
+                      currentUser = user,
+                      bookingRepository = bookingRepository,
+                      crewRepository = crewRepository,
+                      userRepository = userRepository,
+                      onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) }
+                    )
+                  }
+                }
+                1 -> if (isCrew) {
+                  CrewRequestsScreen(
+                    currentUser = user,
+                    bookingRepository = bookingRepository,
+                    crewRepository = crewRepository,
+                    snackbarHostState = snackbarHostState,
+                    onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) }
+                  )
+                } else {
+                  ClientBookingsScreen(
+                    currentUser = user,
+                    bookingRepository = bookingRepository,
+                    onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
+                    onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
+                    onBookShootClick = { navController.navigate(Screen.BookWizard.route) }
+                  )
+                }
+                else -> if (isCrew && page == 2) {
+                  ClientBookingsScreen(
+                    currentUser = user,
+                    bookingRepository = bookingRepository,
+                    onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
+                    onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
+                    onBookShootClick = { navController.navigate(Screen.BookWizard.route) }
+                  )
+                } else if ((!isCrew && page == 2) || (isCrew && page == 3)) {
+                  MessagesOverviewScreen(
+                    currentUser = user,
+                    bookingRepository = bookingRepository,
+                    onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
+                  )
+                } else {
+                  ProfileScreen(
+                    currentUser = user,
+                    userRepository = userRepository,
+                    crewRepository = crewRepository,
+                    onLogout = {
+                      navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                      }
+                    }
+                  )
                 }
               }
-            )
+            }
           }
         }
 
@@ -508,14 +459,14 @@ fun AppNavigation(
               onCancelled = {
                 scope.launch {
                   bookingRepository.cancelBooking(bookingId)
-                  navController.navigate(Screen.MainHome.route) {
-                    popUpTo(Screen.MainHome.route) { inclusive = true }
+                  navController.navigate(Screen.MainTabs.route) {
+                    popUpTo(Screen.MainTabs.route) { inclusive = true }
                   }
                 }
               },
               onDismissToHome = {
-                navController.navigate(Screen.MainHome.route) {
-                  popUpTo(Screen.MainHome.route) { inclusive = true }
+                navController.navigate(Screen.MainTabs.route) {
+                  popUpTo(Screen.MainTabs.route) { inclusive = true }
                 }
               }
             )
@@ -539,8 +490,8 @@ fun AppNavigation(
               onOpenChat = { navController.navigate(Screen.BookingChat.createRoute(bookingId)) },
               onViewBookingDetails = { navController.navigate(Screen.BookingDetail.createRoute(bookingId)) },
               onBackToHome = {
-                navController.navigate(Screen.MainHome.route) {
-                  popUpTo(Screen.MainHome.route) { inclusive = true }
+                navController.navigate(Screen.MainTabs.route) {
+                  popUpTo(Screen.MainTabs.route) { inclusive = true }
                 }
               }
             )

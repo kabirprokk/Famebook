@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,51 +89,16 @@ fun SplashScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
       ) {
-        // Monogram Logo Node
-        Box(
+        // FameBook brand logo
+        Image(
+          painter = painterResource(id = R.drawable.famebook_logo),
+          contentDescription = "FameBook Logo",
           modifier = Modifier
-            .size(80.dp)
-            .clip(RoundedCornerShape(22.dp))
-            .background(AmberGoldContainer)
-            .border(1.5.dp, AmberGold, RoundedCornerShape(22.dp)),
-          contentAlignment = Alignment.Center
-        ) {
-          Icon(
-            imageVector = Icons.Default.Videocam,
-            contentDescription = "FameBook Logo",
-            tint = AmberGold,
-            modifier = Modifier.size(42.dp)
-          )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-          text = "FameBook",
-          style = MaterialTheme.typography.displayMedium.copy(
-            fontWeight = FontWeight.Black,
-            letterSpacing = (-1).sp
-          ),
-          color = PureWhite
+            .size(148.dp)
+            .clip(RoundedCornerShape(32.dp))
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = "by",
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextMuted
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(
-            text = "FameBros Studio",
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-            color = AmberGold
-          )
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
           text = "PROFESSIONAL SHOOT-BOOKING PLATFORM",
