@@ -274,42 +274,16 @@ fun SearchingCrewScreen(
 fun CinematicOrbitalPulse() {
   val infiniteTransition = rememberInfiniteTransition(label = "pulse")
 
-  val pulse1 by infiniteTransition.animateFloat(
+  // One lightweight pulse keeps the radar alive without driving four animated
+  // values and several expensive glow layers on lower-end devices.
+  val pulse by infiniteTransition.animateFloat(
     initialValue = 0.2f,
     targetValue = 1f,
     animationSpec = infiniteRepeatable(
       animation = tween(2600, easing = FastOutSlowInEasing),
       repeatMode = RepeatMode.Restart
     ),
-    label = "wave1"
-  )
-  val pulse2 by infiniteTransition.animateFloat(
-    initialValue = 0.2f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(2600, delayMillis = 800, easing = FastOutSlowInEasing),
-      repeatMode = RepeatMode.Restart
-    ),
-    label = "wave2"
-  )
-  val pulse3 by infiniteTransition.animateFloat(
-    initialValue = 0.2f,
-    targetValue = 1f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(2600, delayMillis = 1600, easing = FastOutSlowInEasing),
-      repeatMode = RepeatMode.Restart
-    ),
-    label = "wave3"
-  )
-
-  val coreGlow by infiniteTransition.animateFloat(
-    initialValue = 0.85f,
-    targetValue = 1.15f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(1500, easing = FastOutSlowInEasing),
-      repeatMode = RepeatMode.Reverse
-    ),
-    label = "coreGlow"
+    label = "radar_pulse"
   )
 
   Box(
@@ -320,26 +294,23 @@ fun CinematicOrbitalPulse() {
       val center = this.center
       val maxRadius = size.minDimension / 2
 
-      // Wave 1
       drawCircle(
-        color = AmberGold.copy(alpha = (1f - pulse1) * 0.4f),
-        radius = maxRadius * pulse1,
+        color = AmberGold.copy(alpha = (1f - pulse) * 0.4f),
+        radius = maxRadius * pulse,
         center = center,
         style = Stroke(width = 2.dp.toPx())
       )
 
-      // Wave 2
       drawCircle(
-        color = LensCyan.copy(alpha = (1f - pulse2) * 0.3f),
-        radius = maxRadius * pulse2,
+        color = LensCyan.copy(alpha = 0.12f),
+        radius = maxRadius * 0.67f,
         center = center,
         style = Stroke(width = 1.5.dp.toPx())
       )
 
-      // Wave 3
       drawCircle(
-        color = AmberGold.copy(alpha = (1f - pulse3) * 0.2f),
-        radius = maxRadius * pulse3,
+        color = AmberGold.copy(alpha = 0.08f),
+        radius = maxRadius * 0.38f,
         center = center,
         style = Stroke(width = 1.dp.toPx())
       )
@@ -359,7 +330,7 @@ fun CinematicOrbitalPulse() {
           .background(
             Brush.radialGradient(
               colors = listOf(
-                AmberGold.copy(alpha = 0.25f * coreGlow),
+                AmberGold.copy(alpha = 0.2f),
                 Color(0x00000000)
               )
             )
