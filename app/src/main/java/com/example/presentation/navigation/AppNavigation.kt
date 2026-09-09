@@ -127,6 +127,15 @@ fun AppNavigation(
 
   var showNotificationDialog by remember { mutableStateOf(false) }
 
+  // Restore saved Supabase session once so reopening the app skips sign-in.
+  LaunchedEffect(Unit) {
+    try {
+      userRepository.restoreSession()
+    } catch (_: Exception) {
+      // Stay signed out; user can sign in manually.
+    }
+  }
+
   // Deep link handling from background notification tap
   LaunchedEffect(initialBookingId) {
     if (!initialBookingId.isNullOrBlank()) {

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.data.notification.IncomingRequestNotificationHelper
 import com.example.data.receiver.ShootRequestActionReceiver
+import com.example.di.ServiceLocator
 import com.example.presentation.navigation.AppNavigation
 import com.example.ui.theme.FameBookTheme
 import com.example.ui.theme.ObsidianBlack
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
 
+    ServiceLocator.init(this)
     IncomingRequestNotificationHelper.createNotificationChannels(this)
     targetBookingId = intent?.getStringExtra(ShootRequestActionReceiver.EXTRA_BOOKING_ID)
 

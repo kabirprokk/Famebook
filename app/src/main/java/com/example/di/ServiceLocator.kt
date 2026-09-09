@@ -2,8 +2,10 @@ package com.example.di
 
 import com.example.data.repository.LocalAuthenticationRepository
 import com.example.data.repository.LocalUserRepository
+import android.content.Context
 import com.example.data.remote.SupabaseHttpClient
 import com.example.data.remote.SupabaseSession
+import com.example.data.remote.SupabaseSessionStore
 import com.example.BuildConfig
 import com.example.data.repository.SupabaseBookingRepository
 import com.example.data.repository.SupabaseCrewRepository
@@ -24,13 +26,22 @@ import com.example.domain.repository.UserRepository
  */
 object ServiceLocator {
   private val supabaseSession = SupabaseSession()
+  private var sessionStore: SupabaseSessionStore? = null
   private val supabaseApi by lazy { SupabaseHttpClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_PUBLISHABLE_KEY) }
+
+  fun init(context: Context) {
+    if (sessionStore == null) {
+      sessionStore = SupabaseSessionStore(context)
+      supabaseSession.accessToken = sessionStore?.accessToken()
+      supabaseSession.refreshToken = sessionStore?.refreshToken()
+    }
+  }
   private val _localUserRepository by lazy {
     LocalUserRepository()
   }
 
   val userRepository: UserRepository by lazy {
-    SupabaseUserRepository(supabaseApi, supabaseSession)
+    SupabaseUserRepository(supabaseApi, supabaseSession, sessionStore)
   }
 
   val authenticationRepository: AuthenticationRepository by lazy {

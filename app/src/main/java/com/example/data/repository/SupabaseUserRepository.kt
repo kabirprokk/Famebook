@@ -3,6 +3,7 @@ package com.example.data.repository
 import com.example.BuildConfig
 import com.example.data.remote.SupabaseHttpClient
 import com.example.data.remote.SupabaseSession
+import com.example.data.remote.SupabaseSessionStore
 import android.net.Uri
 import com.example.domain.model.AuthState
 import com.example.domain.model.User
@@ -21,7 +22,8 @@ class SupabaseUserRepository(
     BuildConfig.SUPABASE_URL,
     BuildConfig.SUPABASE_PUBLISHABLE_KEY
   ),
-  private val session: SupabaseSession = SupabaseSession()
+  private val session: SupabaseSession = SupabaseSession(),
+  private val sessionStore: SupabaseSessionStore? = null
 ) : UserRepository {
   private val _currentUser = MutableStateFlow<User?>(null)
   override val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
@@ -59,6 +61,12 @@ class SupabaseUserRepository(
         val token = session?.optString("access_token").orEmpty()
         if (token.isBlank()) error("Account created. Confirm your email before signing in.")
         this@SupabaseUserRepository.session.accessToken = token
+        this@SupabaseUserRepository.session.refreshToken =
+          session?.optString("refresh_token")?.takeIf { it.isNotBlank() }
+        sessionStore?.save(
+          this@SupabaseUserRepository.session.accessToken,
+          this@SupabaseUserRepository.session.refreshToken ?: sessionStore?.refreshToken()
+        )
         loadProfile(user.getString("id"), name, email, phone)
       }
     }.fold({ user -> setAuthenticated(user) }, { failure(it.message ?: "Account creation failed.") })
@@ -68,11 +76,47 @@ class SupabaseUserRepository(
     runCatching { accessToken?.let { api.request("POST", "auth/v1/logout", accessToken = it).use { } } }
       .fold({
         session.accessToken = null
+        session.refreshToken = null
         session.currentUser = null
+        sessionStore?.clear()
         _currentUser.value = null
         _authState.value = AuthState.Unauthenticated
         Result.success(Unit)
       }, { failure(it.message ?: "Sign out failed.") })
+  }
+
+  override suspend fun restoreSession(): Result<User> = withContext(Dispatchers.IO) {
+    if (_currentUser.value != null) return@withContext Result.success(_currentUser.value!!)
+    val storedRefresh = session.refreshToken ?: sessionStore?.refreshToken()
+    val storedAccess = session.accessToken ?: sessionStore?.accessToken()
+    if (storedRefresh.isNullOrBlank() && storedAccess.isNullOrBlank()) {
+      return@withContext Result.failure(IllegalStateException("No saved session"))
+    }
+    // Prefer refresh flow so expired access tokens still restore.
+    if (!storedRefresh.isNullOrBlank()) {
+      val refreshed = tryRefresh(storedRefresh)
+      if (refreshed.isSuccess) return@withContext refreshed
+    }
+    // Fall back to stored access token (may still be valid).
+    if (!storedAccess.isNullOrBlank()) {
+      session.accessToken = storedAccess
+      runCatching {
+        api.request("GET", "auth/v1/user", accessToken = storedAccess).use { response ->
+          if (!response.isSuccessful) error("Saved session expired. Please sign in again.")
+          val authUser = JSONObject(response.body?.string().orEmpty())
+          loadProfile(authUser.getString("id"), "", authUser.optString("email"), "")
+        }
+      }.fold(
+        { setAuthenticated(it) },
+        {
+          session.accessToken = null
+          sessionStore?.clear()
+          Result.failure(it)
+        }
+      )
+    } else {
+      Result.failure(IllegalStateException("No saved session"))
+    }
   }
 
   override suspend fun updateProfile(name: String, email: String, phone: String, bio: String, company: String?): Result<User> = withContext(Dispatchers.IO) {
@@ -130,12 +174,37 @@ class SupabaseUserRepository(
     api.request(method, path, body).use { response ->
       if (!response.isSuccessful) error(response.errorMessage())
       val json = JSONObject(response.body?.string().orEmpty())
-      session.accessToken = json.getString("access_token")
+      persistTokens(json)
       val authUser = json.getJSONObject("user")
       val metadata = authUser.optJSONObject("user_metadata")
       loadProfile(authUser.getString("id"), metadata?.optString("full_name").orEmpty(), email, "")
     }
   }.fold({ setAuthenticated(it) }, { failure(it.message ?: "Sign in failed.") })
+
+  private fun tryRefresh(refreshToken: String): Result<User> = runCatching {
+    val payload = JSONObject().put("refresh_token", refreshToken)
+    api.request("POST", "auth/v1/token?grant_type=refresh_token", payload.toString()).use { response ->
+      if (!response.isSuccessful) error("Saved session expired. Please sign in again.")
+      val json = JSONObject(response.body?.string().orEmpty())
+      persistTokens(json)
+      val authUser = json.getJSONObject("user")
+      loadProfile(authUser.getString("id"), "", authUser.optString("email"), "")
+    }
+  }.fold(
+    { setAuthenticated(it) },
+    {
+      session.accessToken = null
+      session.refreshToken = null
+      sessionStore?.clear()
+      Result.failure(it)
+    }
+  )
+
+  private fun persistTokens(json: JSONObject) {
+    session.accessToken = json.optString("access_token").takeIf { it.isNotBlank() }
+    session.refreshToken = json.optString("refresh_token").takeIf { it.isNotBlank() } ?: session.refreshToken
+    sessionStore?.save(session.accessToken, session.refreshToken ?: sessionStore?.refreshToken())
+  }
 
   private fun loadProfile(id: String, fallbackName: String, email: String, phone: String): User {
     api.request("GET", "rest/v1/profiles?id=eq.$id&select=*", accessToken = accessToken).use { response ->
