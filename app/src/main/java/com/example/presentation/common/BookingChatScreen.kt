@@ -31,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,6 +89,7 @@ fun BookingChatScreen(
   val scope = rememberCoroutineScope()
 
   var inputText by remember { mutableStateOf("") }
+  val snackbarHostState = remember { SnackbarHostState() }
 
   val quickReplies = listOf(
     "Location permit secured 👍",
@@ -103,6 +106,7 @@ fun BookingChatScreen(
 
   Scaffold(
     containerColor = ObsidianBlack,
+    snackbarHost = { SnackbarHost(snackbarHostState) },
     topBar = {
       FameBookTopBar(
         title = booking?.title ?: "Production Chat",
@@ -176,13 +180,21 @@ fun BookingChatScreen(
                   val textToSend = inputText
                   inputText = ""
                   scope.launch {
-                    messageRepository.sendMessage(
-                      bookingId = bookingId,
-                      senderId = currentUser.id,
-                      senderName = currentUser.name,
-                      senderRole = currentUser.role,
-                      text = textToSend
-                    )
+                    val result = try {
+                      messageRepository.sendMessage(
+                        bookingId = bookingId,
+                        senderId = currentUser.id,
+                        senderName = currentUser.name,
+                        senderRole = currentUser.role,
+                        text = textToSend
+                      )
+                    } catch (e: Exception) {
+                      Result.failure(e)
+                    }
+                    if (result.isFailure) {
+                      inputText = textToSend
+                      snackbarHostState.showSnackbar("Message failed. Check connection and retry.")
+                    }
                   }
                 }
               },

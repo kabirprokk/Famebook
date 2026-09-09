@@ -1,7 +1,5 @@
 package com.example.di
 
-import com.example.data.repository.LocalAuthenticationRepository
-import com.example.data.repository.LocalUserRepository
 import android.content.Context
 import com.example.data.remote.SupabaseHttpClient
 import com.example.data.remote.SupabaseSession
@@ -12,7 +10,6 @@ import com.example.data.repository.SupabaseCrewRepository
 import com.example.data.repository.SupabaseMessageRepository
 import com.example.data.repository.SupabaseNotificationRepository
 import com.example.data.repository.SupabaseUserRepository
-import com.example.domain.repository.AuthenticationRepository
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
 import com.example.domain.repository.MessageRepository
@@ -36,16 +33,8 @@ object ServiceLocator {
       supabaseSession.refreshToken = sessionStore?.refreshToken()
     }
   }
-  private val _localUserRepository by lazy {
-    LocalUserRepository()
-  }
-
   val userRepository: UserRepository by lazy {
     SupabaseUserRepository(supabaseApi, supabaseSession, sessionStore)
-  }
-
-  val authenticationRepository: AuthenticationRepository by lazy {
-    LocalAuthenticationRepository(_localUserRepository)
   }
 
   val crewRepository: CrewRepository by lazy {

@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -89,7 +90,7 @@ fun BookingDetailScreen(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  val bookingFlow = rememberCoroutineScope().let { bookingRepository.getBooking(bookingId) }
+  val bookingFlow = remember(bookingId) { bookingRepository.getBooking(bookingId) }
   val booking by bookingFlow.collectAsState(initial = null)
 
   Scaffold(
@@ -200,7 +201,7 @@ fun BookingDetailScreen(
 
                   Column(modifier = Modifier.weight(1f)) {
                     Text(
-                      text = if (currentUser.role == UserRole.CREW) b.clientName else (b.assignedCrewName ?: "Marcus Chen"),
+                      text = if (currentUser.role == UserRole.CREW) b.clientName else (b.assignedCrewName ?: "Pending Assignment"),
                       style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                       color = PureWhite
                     )
@@ -221,13 +222,15 @@ fun BookingDetailScreen(
                   modifier = Modifier.fillMaxWidth(),
                   horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                  val targetPhone = if (currentUser.role == UserRole.CREW) b.clientPhone else (b.assignedCrewPhone ?: "+919811187654")
+                  val targetPhone = if (currentUser.role == UserRole.CREW) b.clientPhone else b.assignedCrewPhone
 
                   OutlinedButton(
                     onClick = {
-                      val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$targetPhone"))
-                      context.startActivity(intent)
+                      targetPhone?.takeIf { it.isNotBlank() }?.let {
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$it")))
+                      }
                     },
+                    enabled = !targetPhone.isNullOrBlank(),
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
