@@ -67,7 +67,9 @@ import com.example.data.service.CrewDispatchService
 import com.example.di.ServiceLocator
 import com.example.domain.model.UserRole
 import com.example.presentation.admin.AdminOverviewScreen
+import com.example.presentation.auth.AuthMode
 import com.example.presentation.auth.AuthScreen
+import com.example.presentation.auth.VideoWelcomeScreen
 import com.example.presentation.client.booking.BookShootWizardScreen
 import com.example.presentation.client.booking.ConfirmationScreen
 import com.example.presentation.client.booking.SearchingCrewScreen
@@ -111,7 +113,10 @@ private fun tabsForRole(role: UserRole?): List<MainTab> = when (role) {
 sealed class Screen(val route: String) {
   object Splash : Screen("splash")
   object Onboarding : Screen("onboarding")
-  object Auth : Screen("auth")
+  object VideoWelcome : Screen("video_welcome")
+  object Auth : Screen("auth/{mode}") {
+    fun createRoute(mode: AuthMode = AuthMode.SIGN_IN) = "auth/${mode.name}"
+  }
   object MainTabs : Screen("main_tabs")
   object BookWizard : Screen("book_wizard")
   object SearchingCrew : Screen("searching_crew/{bookingId}") {
@@ -288,7 +293,7 @@ fun AppNavigation(
                   popUpTo(Screen.Splash.route) { inclusive = true }
                 }
               } else {
-                navController.navigate(Screen.Auth.route) {
+                navController.navigate(Screen.VideoWelcome.route) {
                   popUpTo(Screen.Splash.route) { inclusive = true }
                 }
               }
@@ -299,19 +304,33 @@ fun AppNavigation(
         composable(Screen.Onboarding.route) {
           OnboardingScreen(
             onComplete = {
-              navController.navigate(Screen.Auth.route) {
+              navController.navigate(Screen.VideoWelcome.route) {
                 popUpTo(Screen.Onboarding.route) { inclusive = true }
               }
             }
           )
         }
 
-        composable(Screen.Auth.route) {
+        composable(Screen.VideoWelcome.route) {
+          VideoWelcomeScreen(
+            onSignUpClick = { navController.navigate(Screen.Auth.createRoute(AuthMode.SIGN_UP)) },
+            onSignInClick = { navController.navigate(Screen.Auth.createRoute(AuthMode.SIGN_IN)) }
+          )
+        }
+
+        composable(
+          route = Screen.Auth.route,
+          arguments = listOf(navArgument("mode") { type = NavType.StringType })
+        ) { backStackEntry ->
+          val initialMode = runCatching {
+            AuthMode.valueOf(backStackEntry.arguments?.getString("mode") ?: AuthMode.SIGN_IN.name)
+          }.getOrDefault(AuthMode.SIGN_IN)
           AuthScreen(
             userRepository = userRepository,
+            initialMode = initialMode,
             onLoginSuccess = { user ->
               navController.navigate(Screen.MainTabs.route) {
-                popUpTo(Screen.Auth.route) { inclusive = true }
+                popUpTo(Screen.VideoWelcome.route) { inclusive = true }
               }
             }
           )
@@ -323,7 +342,7 @@ fun AppNavigation(
           val user = currentUser
           if (user == null) {
             LaunchedEffect(Unit) {
-              navController.navigate(Screen.Auth.route) {
+              navController.navigate(Screen.VideoWelcome.route) {
                 popUpTo(0) { inclusive = true }
               }
             }
@@ -404,7 +423,7 @@ fun AppNavigation(
                     userRepository = userRepository,
                     crewRepository = crewRepository,
                     onLogout = {
-                      navController.navigate(Screen.Auth.route) {
+                      navController.navigate(Screen.VideoWelcome.route) {
                         popUpTo(0) { inclusive = true }
                       }
                     }

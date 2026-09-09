@@ -77,10 +77,11 @@ enum class AuthMode {
 @Composable
 fun AuthScreen(
   userRepository: UserRepository,
+  initialMode: AuthMode = AuthMode.SIGN_IN,
   onLoginSuccess: (User) -> Unit
 ) {
   val scope = rememberCoroutineScope()
-  var authMode by remember { mutableStateOf(AuthMode.SIGN_IN) }
+  var authMode by remember(initialMode) { mutableStateOf(initialMode) }
 
   // Sign In fields
   var signInEmail by remember { mutableStateOf("") }
