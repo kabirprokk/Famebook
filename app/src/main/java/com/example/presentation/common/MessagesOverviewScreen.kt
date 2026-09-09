@@ -28,8 +28,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +57,7 @@ import com.example.ui.theme.ObsidianBlack
 import com.example.ui.theme.PureWhite
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun MessagesOverviewScreen(
@@ -60,11 +65,19 @@ fun MessagesOverviewScreen(
   bookingRepository: BookingRepository,
   onOpenChat: (String) -> Unit
 ) {
-  val allBookings by if (currentUser.role == UserRole.CREW) {
-    bookingRepository.getCrewBookings(currentUser.id).collectAsState(initial = emptyList())
-  } else {
-    bookingRepository.getClientBookings(currentUser.id).collectAsState(initial = emptyList())
+  // Poll while visible so newly confirmed shoots appear without reopening.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(currentUser.id) {
+    while (true) {
+      delay(20000)
+      refreshTick++
+    }
   }
+  val bookingsFlow = remember(currentUser.id, refreshTick) {
+    if (currentUser.role == UserRole.CREW) bookingRepository.getCrewBookings(currentUser.id)
+    else bookingRepository.getClientBookings(currentUser.id)
+  }
+  val allBookings by bookingsFlow.collectAsState(initial = emptyList())
 
   val activeChats = allBookings.filter {
     it.status == BookingStatus.CONFIRMED ||

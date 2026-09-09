@@ -4,6 +4,8 @@
 2. Open **SQL Editor** and create a new query.
 3. Paste and run `001_initial_schema.sql`.
 4. Paste and run `002_admin_role_management.sql` to enable admin-only in-app role assignment.
+5. Paste and run `003_crew_availability_fix.sql` so crew can create their availability profile.
+6. Paste and run `004_notification_fanout.sql` so booking requests, acceptances, and cancellations notify the other party's device.
 5. In **Authentication > Providers**, enable **Email** and keep Google disabled for now.
 5. In **Authentication > URL Configuration > Redirect URLs**, add:
    `famebook://auth/callback`

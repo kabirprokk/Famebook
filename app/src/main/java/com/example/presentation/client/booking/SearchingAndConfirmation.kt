@@ -89,7 +89,16 @@ fun SearchingCrewScreen(
   onCancelled: () -> Unit,
   onDismissToHome: () -> Unit
 ) {
-  val bookingFlow = remember(bookingId) { bookingRepository.getBooking(bookingId) }
+  // Re-fetch every few seconds so a crew accept on another device
+  // flips this screen to CONFIRMED without any manual refresh.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(bookingId) {
+    while (true) {
+      delay(5000)
+      refreshTick++
+    }
+  }
+  val bookingFlow = remember(bookingId, refreshTick) { bookingRepository.getBooking(bookingId) }
   val booking by bookingFlow.collectAsState(initial = null)
 
   var statusMessageIndex by remember { mutableIntStateOf(0) }

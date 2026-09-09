@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +70,7 @@ import com.example.ui.theme.PureWhite
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,8 +85,20 @@ fun BookingChatScreen(
   bookingRepository: BookingRepository,
   onBackClick: () -> Unit
 ) {
-  val messages by messageRepository.getMessages(bookingId).collectAsState(initial = emptyList())
-  val booking by bookingRepository.getBooking(bookingId).collectAsState(initial = null)
+  // Poll while open so messages from the other device arrive live.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(bookingId) {
+    while (true) {
+      delay(5000)
+      refreshTick++
+    }
+  }
+  val messages by remember(bookingId, refreshTick) {
+    messageRepository.getMessages(bookingId)
+  }.collectAsState(initial = emptyList())
+  val booking by remember(bookingId, refreshTick) {
+    bookingRepository.getBooking(bookingId)
+  }.collectAsState(initial = null)
   val listState = rememberLazyListState()
   val scope = rememberCoroutineScope()
 
@@ -194,6 +208,8 @@ fun BookingChatScreen(
                     if (result.isFailure) {
                       inputText = textToSend
                       snackbarHostState.showSnackbar("Message failed. Check connection and retry.")
+                    } else {
+                      refreshTick++
                     }
                   }
                 }

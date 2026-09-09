@@ -36,9 +36,13 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +69,7 @@ import com.example.ui.theme.RecRed
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -76,8 +81,17 @@ fun CrewRequestsScreen(
   onBookingClick: (String) -> Unit
 ) {
   val scope = rememberCoroutineScope()
-  val incomingRequests by bookingRepository.getIncomingRequestsForCrew(currentUser.id)
-    .collectAsState(initial = emptyList())
+  // Poll while visible so requests created on another device appear here.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(currentUser.id) {
+    while (true) {
+      delay(15000)
+      refreshTick++
+    }
+  }
+  val incomingRequests by remember(currentUser.id, refreshTick) {
+    bookingRepository.getIncomingRequestsForCrew(currentUser.id)
+  }.collectAsState(initial = emptyList())
 
   LazyColumn(
     modifier = Modifier

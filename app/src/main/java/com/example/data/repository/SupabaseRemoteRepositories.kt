@@ -225,15 +225,26 @@ class SupabaseBookingRepository(
       val requirements = JSONArray(booking.requirements.map { JSONObject().put("booking_id", id).put("crew_role", it.role.name).put("quantity", it.count).put("equipment_notes", it.equipmentNotes) })
       api.request("POST", "rest/v1/booking_requirements", requirements.toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) }
     }
-    loadBooking(id)
+    val result = loadBooking(id)
+    notifyCrewOfNewBooking(result)
+    result
     }
   }
-  override suspend fun cancelBooking(bookingId: String): Result<Unit> = updateStatus(bookingId, BookingStatus.CANCELLED)
+  override suspend fun cancelBooking(bookingId: String): Result<Unit> = withContext(Dispatchers.IO) {
+    val booking = runCatching { loadBooking(bookingId) }.getOrNull()
+    updateStatus(bookingId, BookingStatus.CANCELLED).onSuccess {
+      booking?.assignedCrewId?.let { crewId ->
+        notifyUser(crewId, bookingId, "Booking Cancelled", "Shoot '${booking.title}' was cancelled by the client.")
+      }
+    }
+  }
   override suspend fun acceptBooking(bookingId: String, crewId: String): Result<Booking> = withContext(Dispatchers.IO) {
     runCatching {
-      api.request("POST", "rest/v1/rpc/accept_booking", JSONObject().put("p_booking_id", bookingId).toString(), token()).use { response ->
+      val confirmed = api.request("POST", "rest/v1/rpc/accept_booking", JSONObject().put("p_booking_id", bookingId).toString(), token()).use { response ->
         if (!response.isSuccessful) error(responseError(response)); bookingFromJson(response.body?.string()?.let(::JSONObject) ?: error("Empty booking response"))
       }
+      notifyUser(confirmed.clientId, bookingId, "Crew Confirmed!", "Your shoot '${confirmed.title}' has been accepted.")
+      confirmed
     }
   }
   override suspend fun declineBooking(bookingId: String, crewId: String): Result<Unit> = Result.success(Unit)
@@ -254,6 +265,43 @@ class SupabaseBookingRepository(
   }.flowOn(Dispatchers.IO)
   private suspend fun loadBooking(id: String): Booking = withContext(Dispatchers.IO) {
     var value: Booking? = null; bookings().collect { value = it.find { b -> b.id == id } }; value ?: error("Booking was not returned by Supabase.")
+  }
+
+  // Cross-device fan-out: push rows into notifications so the other party's
+  // device shows them. Best-effort; booking state never depends on this.
+  private fun notifyUser(recipientId: String, bookingId: String?, title: String, body: String) {
+    if (recipientId.isBlank()) return
+    runCatching {
+      val payload = JSONObject()
+        .put("recipient_id", recipientId)
+        .put("booking_id", bookingId)
+        .put("title", title)
+        .put("body", body)
+      api.request("POST", "rest/v1/notifications", payload.toString(), token()).use { }
+    }
+  }
+
+  private fun notifyCrewOfNewBooking(booking: Booking) {
+    runCatching {
+      val crewIds = api.request(
+        "GET",
+        "rest/v1/profiles?select=id&role=eq.CREW",
+        accessToken = token()
+      ).use { response ->
+        if (!response.isSuccessful) return
+        val rows = JSONArray(response.body?.string().orEmpty())
+        List(rows.length()) { rows.getJSONObject(it).optString("id") }.filter { it.isNotBlank() }
+      }
+      if (crewIds.isEmpty()) return
+      val rows = JSONArray(crewIds.map { id ->
+        JSONObject()
+          .put("recipient_id", id)
+          .put("booking_id", booking.id)
+          .put("title", "New Shoot Request!")
+          .put("body", "${booking.title} in ${booking.location.city}")
+      })
+      api.request("POST", "rest/v1/notifications", rows.toString(), token()).use { }
+    }
   }
 
   private fun bookingFromJson(j: JSONObject): Booking {

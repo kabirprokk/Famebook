@@ -42,10 +42,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +80,7 @@ import com.example.ui.theme.RecRed
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,7 +94,15 @@ fun BookingDetailScreen(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  val bookingFlow = remember(bookingId) { bookingRepository.getBooking(bookingId) }
+  // Poll while open so status changes from the other device appear live.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  LaunchedEffect(bookingId) {
+    while (true) {
+      delay(10000)
+      refreshTick++
+    }
+  }
+  val bookingFlow = remember(bookingId, refreshTick) { bookingRepository.getBooking(bookingId) }
   val booking by bookingFlow.collectAsState(initial = null)
 
   Scaffold(
