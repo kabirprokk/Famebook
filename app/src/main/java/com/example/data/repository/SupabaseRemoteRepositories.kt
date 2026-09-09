@@ -73,8 +73,8 @@ class SupabaseCrewRepository(
     _profiles.map { list -> list.find { p -> p.userId == userId } }
       .onStart { runCatching { refreshProfiles() } }
 
-  override suspend fun setAvailability(crewId: String, isAvailable: Boolean) {
-    update(crewId, JSONObject().put("is_available", isAvailable))
+  override suspend fun setAvailability(crewId: String, isAvailable: Boolean): Result<Unit> {
+    return update(crewId, JSONObject().put("is_available", isAvailable))
   }
 
   override fun getAvailableCrew(role: CrewRole?): List<CrewProfile> = _profiles.value.filter {
@@ -140,9 +140,8 @@ class SupabaseCrewRepository(
     return result
   }
 
-  private suspend fun update(id: String, body: JSONObject) {
-    // Never throw: availability toggle runs from UI scope and must not crash the app.
-    runCatching {
+  private suspend fun update(id: String, body: JSONObject): Result<Unit> {
+    val result = runCatching {
       val patchedRows = api.request(
         "PATCH",
         "rest/v1/crew_profiles?user_id=eq.$id",
@@ -165,6 +164,13 @@ class SupabaseCrewRepository(
       }
     }
     runCatching { refreshProfiles() }
+    result.fold(
+      onSuccess = { return Result.success(Unit) },
+      onFailure = {
+        android.util.Log.e("SupabaseCrew", "setAvailability failed for $id", it)
+        return Result.failure(it)
+      }
+    )
   }
 
   private fun crewFromJson(json: JSONObject, user: JSONObject = JSONObject()): CrewProfile {

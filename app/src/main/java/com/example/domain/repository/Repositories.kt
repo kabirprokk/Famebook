@@ -70,7 +70,7 @@ interface CrewRepository {
   val crewProfiles: StateFlow<List<CrewProfile>>
   fun getCrewProfile(crewId: String): Flow<CrewProfile?>
   fun getCrewProfileByUserId(userId: String): Flow<CrewProfile?>
-  suspend fun setAvailability(crewId: String, isAvailable: Boolean)
+  suspend fun setAvailability(crewId: String, isAvailable: Boolean): Result<Unit>
   fun getAvailableCrew(role: CrewRole? = null): List<CrewProfile>
   suspend fun updateCrewProfile(profile: CrewProfile): Result<CrewProfile>
 }

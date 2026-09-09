@@ -26,7 +26,7 @@ class LocalCrewRepository : CrewRepository {
     return _crewProfiles.map { profiles -> profiles.find { it.userId == userId } }
   }
 
-  override suspend fun setAvailability(crewId: String, isAvailable: Boolean) {
+  override suspend fun setAvailability(crewId: String, isAvailable: Boolean): Result<Unit> {
     _crewProfiles.value = _crewProfiles.value.map { profile ->
       if (profile.id == crewId || profile.userId == crewId) {
         profile.copy(isAvailable = isAvailable)
@@ -34,6 +34,7 @@ class LocalCrewRepository : CrewRepository {
         profile
       }
     }
+    return Result.success(Unit)
   }
 
   override fun getAvailableCrew(role: CrewRole?): List<CrewProfile> {

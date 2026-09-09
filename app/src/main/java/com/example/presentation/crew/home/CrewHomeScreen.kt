@@ -155,13 +155,19 @@ fun CrewHomeScreen(
                 if (isUpdatingAvailability) return@Switch
                 isUpdatingAvailability = true
                 scope.launch {
-                  try {
+                  val result = try {
                     crewRepository.setAvailability(currentUser.id, newStatus)
                   } catch (e: Exception) {
-                    snackbarHostState.showSnackbar("Could not update availability. Please try again.")
-                  } finally {
-                    isUpdatingAvailability = false
+                    Result.failure(e)
                   }
+                  if (result.isFailure) {
+                    val reason = result.exceptionOrNull()?.message?.take(120)
+                    snackbarHostState.showSnackbar(
+                      if (reason.isNullOrBlank()) "Could not update availability. Check connection and retry."
+                      else "Availability failed: $reason"
+                    )
+                  }
+                  isUpdatingAvailability = false
                 }
               },
               colors = SwitchDefaults.colors(
