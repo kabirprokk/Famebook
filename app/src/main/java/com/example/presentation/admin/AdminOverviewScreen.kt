@@ -60,6 +60,8 @@ import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
 import com.example.domain.repository.UserRepository
 import com.example.presentation.components.FameBookTopBar
+import com.example.presentation.components.alivePulse
+import com.example.presentation.components.rememberAlivePulse
 import kotlinx.coroutines.launch
 import com.example.presentation.components.StatusChip
 import com.example.ui.theme.AmberGold
@@ -104,6 +106,8 @@ fun AdminOverviewScreen(
     allUsers = userRepository.getAllUsers()
   }
 
+  val pulse by rememberAlivePulse()
+
   val filteredUsers = remember(allUsers, userQuery) {
     if (userQuery.isBlank()) allUsers
     else allUsers.filter {
@@ -146,6 +150,7 @@ fun AdminOverviewScreen(
           modifier = Modifier
             .clip(RoundedCornerShape(6.dp))
             .background(AmberGoldContainer)
+            .alivePulse(pulse)
             .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
           Text(

@@ -1,7 +1,12 @@
 package com.example.presentation.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -55,6 +60,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -897,6 +904,29 @@ fun EmptyState(
 // Backwards compatibility alias for components used elsewhere
 @Composable
 fun StatusChip(status: BookingStatus) = SimpleStatusBadge(status)
+
+/**
+ * Single shared slow pulse per screen for tiny accent glows (dots, LIVE
+ * badges). Applied through graphicsLayer so it redraws without recomposing.
+ * One transition drives every accent on the screen: effectively free.
+ */
+@Composable
+fun rememberAlivePulse(): State<Float> {
+  val transition = rememberInfiniteTransition(label = "alive")
+  return transition.animateFloat(
+    initialValue = 0.55f,
+    targetValue = 1f,
+    animationSpec = infiniteRepeatable(
+      animation = tween(2600, easing = FastOutSlowInEasing),
+      repeatMode = RepeatMode.Reverse
+    ),
+    label = "alive_pulse"
+  )
+}
+
+fun Modifier.alivePulse(pulse: Float): Modifier = graphicsLayer {
+  alpha = 0.55f + 0.45f * pulse
+}
 
 /**
  * Light one-shot entrance for list cards: a subtle rise + fade, staggered by

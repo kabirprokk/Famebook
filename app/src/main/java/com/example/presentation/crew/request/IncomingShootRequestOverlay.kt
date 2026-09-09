@@ -60,6 +60,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.presentation.components.alivePulse
+import com.example.presentation.components.rememberAlivePulse
 import com.example.ui.theme.AmberGold
 import com.example.ui.theme.DarkBorder
 import com.example.ui.theme.DarkCard
@@ -83,6 +85,7 @@ fun IncomingShootRequestOverlay(
   modifier: Modifier = Modifier
 ) {
   val uiState by viewModel.uiState.collectAsState()
+  val pulse by rememberAlivePulse()
 
   // Subtle background dim overlay when request is active
   AnimatedVisibility(
@@ -136,6 +139,7 @@ fun IncomingShootRequestOverlay(
         is IncomingRequestUiState.ActiveRequest -> {
           ActiveLiquidGlassRequestCard(
             state = state,
+            pulse = pulse,
             onAccept = { viewModel.acceptRequest(state.request.id) },
             onDecline = { viewModel.declineRequest(state.request.id) },
             onDismiss = { viewModel.dismiss() }
@@ -165,6 +169,7 @@ fun IncomingShootRequestOverlay(
 @Composable
 private fun ActiveLiquidGlassRequestCard(
   state: IncomingRequestUiState.ActiveRequest,
+  pulse: Float,
   onAccept: () -> Unit,
   onDecline: () -> Unit,
   onDismiss: () -> Unit
@@ -218,6 +223,7 @@ private fun ActiveLiquidGlassRequestCard(
                 .size(8.dp)
                 .clip(CircleShape)
                 .background(accentColor)
+                .alivePulse(pulse)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(

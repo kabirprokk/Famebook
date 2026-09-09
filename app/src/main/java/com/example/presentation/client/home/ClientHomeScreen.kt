@@ -51,6 +51,8 @@ import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
 import com.example.presentation.components.CardEntrance
+import com.example.presentation.components.alivePulse
+import com.example.presentation.components.rememberAlivePulse
 import com.example.presentation.components.CleanBookingItem
 import com.example.presentation.components.HeroSection
 import com.example.presentation.components.SectionHeader
@@ -88,6 +90,7 @@ fun ClientHomeScreen(
   onOpenChat: (String) -> Unit
 ) {
   val clientBookings by bookingRepository.getClientBookings(currentUser.id).collectAsState(initial = emptyList())
+  val pulse by rememberAlivePulse()
 
   // Categories with expressive cinema and studio icons (Zero Images)
   val categories = listOf(
@@ -152,6 +155,7 @@ fun ClientHomeScreen(
                   .size(10.dp)
                   .clip(CircleShape)
                   .background(AmberGold)
+                  .alivePulse(pulse)
               )
               Spacer(modifier = Modifier.width(12.dp))
               Column(modifier = Modifier.weight(1f)) {

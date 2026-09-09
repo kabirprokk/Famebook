@@ -22,6 +22,11 @@ val LensCyan = Color(0xFF38BDF8)
 val LensCyanContainer = Color(0xFF002933)
 val EmeraldSuccess = Color(0xFF34D399)
 
+// Steller-Nebula developer identity: ice-cyan to violet on deep space black
+val NebulaCyan = Color(0xFF8FD8FF)
+val NebulaViolet = Color(0xFFA78BFA)
+val NebulaDeep = Color(0xFF05070D)
+
 // High-Contrast Clean Typography Colors
 val PureWhite = Color(0xFFFFFFFF)
 val TextPrimary = Color(0xFFF1F5F9)
