@@ -199,12 +199,36 @@ class SupabaseBookingRepository(
   override fun getCrewBookings(crewId: String): Flow<List<Booking>> = bookings().map { it.filter { b -> b.assignedCrewId == crewId } }
   override fun getActiveRequestForClient(clientId: String): Flow<Booking?> = getClientBookings(clientId).map { it.find { b -> b.status == BookingStatus.SEARCHING_CREW || b.status == BookingStatus.OFFERED } }
   override fun getIncomingRequestsForCrew(crewId: String): Flow<List<Booking>> = flow {
+    // RPC returns privacy-safe rows without requirements; enrich them in one
+    // batch so request cards show the required crew role.
     val result = runCatching {
-      api.request("POST", "rest/v1/rpc/get_available_booking_requests", "{}", token()).use { response ->
+      val rows = api.request("POST", "rest/v1/rpc/get_available_booking_requests", "{}", token()).use { response ->
         if (!response.isSuccessful) error(responseError(response))
-        JSONArray(response.body?.string().orEmpty()).let { array ->
-          List(array.length()) { bookingFromJson(array.getJSONObject(it)) }
+        JSONArray(response.body?.string().orEmpty())
+      }
+      val ids = List(rows.length()) { rows.getJSONObject(it).optString("id") }.filter { it.isNotBlank() }
+      val reqsByBooking = if (ids.isEmpty()) emptyMap() else {
+        api.request(
+          "GET",
+          "rest/v1/booking_requirements?booking_id=in.(${ids.joinToString(",")})&select=*",
+          accessToken = token()
+        ).use { response ->
+          if (!response.isSuccessful) emptyMap()
+          else {
+            val reqs = JSONArray(response.body?.string().orEmpty())
+            buildMap<String, MutableList<JSONObject>> {
+              for (i in 0 until reqs.length()) {
+                val r = reqs.getJSONObject(i)
+                getOrPut(r.optString("booking_id")) { mutableListOf() }.add(r)
+              }
+            }
+          }
         }
+      }
+      List(rows.length()) { i ->
+        val row = rows.getJSONObject(i)
+        row.put("booking_requirements", JSONArray(reqsByBooking[row.optString("id")].orEmpty()))
+        bookingFromJson(row)
       }
     }.getOrElse { emptyList() }
     emit(result)
@@ -256,13 +280,84 @@ class SupabaseBookingRepository(
     }
   }
   private fun bookings(): Flow<List<Booking>> = flow {
-    val result = runCatching {
-      api.request("GET", "rest/v1/bookings?select=*,client:profiles!bookings_client_id_fkey(*),crew:profiles!bookings_assigned_crew_id_fkey(*),booking_requirements(*)&order=created_at.desc", accessToken = token()).use { response ->
-        if (!response.isSuccessful) error(responseError(response)); JSONArray(response.body?.string().orEmpty()).let { a -> List(a.length()) { bookingFromJson(a.getJSONObject(it)) } }
-      }
-    }.getOrElse { emptyList() }
+    // Rich join first; plain + batched fallback if the embed ever fails,
+    // so bookings can never silently vanish because of a join name.
+    val result = runCatching { fetchBookingsEmbedded() }
+      .getOrElse { fetchBookingsPlain() }
     _bookings.value = result; emit(result)
   }.flowOn(Dispatchers.IO)
+
+  private fun fetchBookingsEmbedded(): List<Booking> {
+    api.request("GET", "rest/v1/bookings?select=*,client:profiles!bookings_client_id_fkey(*),crew:profiles!bookings_assigned_crew_id_fkey(*),booking_requirements(*)&order=created_at.desc", accessToken = token()).use { response ->
+      if (!response.isSuccessful) error(responseError(response))
+      val rows = JSONArray(response.body?.string().orEmpty())
+      return List(rows.length()) { bookingFromJson(rows.getJSONObject(it)) }
+    }
+  }
+
+  private fun fetchBookingsPlain(): List<Booking> {
+    return runCatching {
+      val rows = api.request(
+        "GET",
+        "rest/v1/bookings?select=*&order=created_at.desc",
+        accessToken = token()
+      ).use { response ->
+        if (!response.isSuccessful) error(responseError(response))
+        JSONArray(response.body?.string().orEmpty())
+      }
+      if (rows.length() == 0) return emptyList()
+      val bookingIds = List(rows.length()) { rows.getJSONObject(it).optString("id") }.filter { it.isNotBlank() }
+      val userIds = List(rows.length()) {
+        val row = rows.getJSONObject(it)
+        listOf(row.optString("client_id"), row.optString("assigned_crew_id"))
+      }.flatten().filter { it.isNotBlank() }.distinct()
+      val usersById = if (userIds.isEmpty()) emptyMap() else {
+        api.request(
+          "GET",
+          "rest/v1/profiles?id=in.(${userIds.joinToString(",")})&select=*",
+          accessToken = token()
+        ).use { response ->
+          if (!response.isSuccessful) emptyMap()
+          else {
+            val profiles = JSONArray(response.body?.string().orEmpty())
+            buildMap {
+              for (i in 0 until profiles.length()) {
+                val p = profiles.getJSONObject(i)
+                put(p.optString("id"), p)
+              }
+            }
+          }
+        }
+      }
+      val reqsByBooking = if (bookingIds.isEmpty()) emptyMap() else {
+        api.request(
+          "GET",
+          "rest/v1/booking_requirements?booking_id=in.(${bookingIds.joinToString(",")})&select=*",
+          accessToken = token()
+        ).use { response ->
+          if (!response.isSuccessful) emptyMap()
+          else {
+            val reqs = JSONArray(response.body?.string().orEmpty())
+            buildMap<String, MutableList<JSONObject>> {
+              for (i in 0 until reqs.length()) {
+                val r = reqs.getJSONObject(i)
+                getOrPut(r.optString("booking_id")) { mutableListOf() }.add(r)
+              }
+            }
+          }
+        }
+      }
+      List(rows.length()) { i ->
+        val row = rows.getJSONObject(i)
+        row.put("client", usersById[row.optString("client_id")] ?: JSONObject())
+        row.optString("assigned_crew_id").takeIf { it.isNotBlank() }?.let { crewId ->
+          usersById[crewId]?.let { row.put("crew", it) }
+        }
+        row.put("booking_requirements", JSONArray(reqsByBooking[row.optString("id")].orEmpty()))
+        bookingFromJson(row)
+      }
+    }.getOrElse { emptyList() }
+  }
   private suspend fun loadBooking(id: String): Booking = withContext(Dispatchers.IO) {
     var value: Booking? = null; bookings().collect { value = it.find { b -> b.id == id } }; value ?: error("Booking was not returned by Supabase.")
   }
@@ -316,7 +411,48 @@ class SupabaseBookingRepository(
 
 class SupabaseMessageRepository(api: SupabaseHttpClient = defaultApi(), session: SupabaseSession = SupabaseSession()) : SupabaseRepository(api, session), MessageRepository {
   override fun getMessages(bookingId: String): Flow<List<Message>> = flow {
-    val result = runCatching { api.request("GET", "rest/v1/messages?booking_id=eq.$bookingId&select=*,sender:profiles!messages_sender_id_fkey(*)&order=created_at.asc", accessToken = token()).use { r -> if (!r.isSuccessful) error(responseError(r)); JSONArray(r.body?.string().orEmpty()).let { a -> List(a.length()) { val j=a.getJSONObject(it); val s=j.optJSONObject("sender") ?: JSONObject(); Message(j.string("id"), bookingId, j.string("sender_id"), s.string("full_name"), enumValue(s.string("role"), UserRole.CLIENT), j.string("body"), timestamp(j.string("created_at"))) } } } }.getOrElse { emptyList() }
+    // Two-step fetch (no fragile FK-embed): messages first, then sender
+    // profiles in one batch so names/roles always resolve.
+    val result = runCatching {
+      val rows = api.request(
+        "GET",
+        "rest/v1/messages?booking_id=eq.$bookingId&select=*&order=created_at.asc",
+        accessToken = token()
+      ).use { r ->
+        if (!r.isSuccessful) error(responseError(r))
+        JSONArray(r.body?.string().orEmpty())
+      }
+      val senderIds = List(rows.length()) { rows.getJSONObject(it).optString("sender_id") }
+        .filter { it.isNotBlank() }.distinct()
+      val senders = if (senderIds.isEmpty()) emptyMap() else {
+        api.request(
+          "GET",
+          "rest/v1/profiles?id=in.(${senderIds.joinToString(",")})&select=id,full_name,role",
+          accessToken = token()
+        ).use { r ->
+          if (!r.isSuccessful) emptyMap()
+          else {
+            val profiles = JSONArray(r.body?.string().orEmpty())
+            buildMap {
+              for (i in 0 until profiles.length()) {
+                val p = profiles.getJSONObject(i)
+                put(p.optString("id"), p)
+              }
+            }
+          }
+        }
+      }
+      List(rows.length()) { i ->
+        val j = rows.getJSONObject(i)
+        val s = senders[j.optString("sender_id")] ?: JSONObject()
+        Message(
+          j.string("id"), bookingId, j.string("sender_id"),
+          s.optString("full_name").ifBlank { "FameBook User" },
+          enumValue(s.optString("role", "CLIENT"), UserRole.CLIENT),
+          j.string("body"), timestamp(j.string("created_at"))
+        )
+      }
+    }.getOrElse { emptyList() }
     emit(result)
   }.flowOn(Dispatchers.IO)
   override suspend fun sendMessage(bookingId: String, senderId: String, senderName: String, senderRole: UserRole, text: String): Result<Message> = withContext(Dispatchers.IO) {
