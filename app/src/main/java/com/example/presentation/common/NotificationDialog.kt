@@ -32,6 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +68,7 @@ fun NotificationDialog(
   onNotificationClick: (String?) -> Unit
 ) {
   val notifications by notificationRepository.getNotifications(userId).collectAsState(initial = emptyList())
+  val scope = rememberCoroutineScope()
 
   BasicAlertDialog(
     onDismissRequest = onDismiss,
@@ -143,8 +146,11 @@ fun NotificationDialog(
                   .fillMaxWidth()
                   .padding(vertical = 4.dp)
                   .clickable {
-                    onNotificationClick(notif.bookingId)
-                    onDismiss()
+                    scope.launch {
+                      runCatching { notificationRepository.markAsRead(notif.id) }
+                      onNotificationClick(notif.bookingId)
+                      onDismiss()
+                    }
                   }
               ) {
                 Column(modifier = Modifier.padding(12.dp)) {

@@ -100,12 +100,12 @@ fun MessagesOverviewScreen(
     if (activeChats.isEmpty()) {
       item {
         EmptyState(
-          title = "NO ACTIVE CHATS",
-          message = "Direct messaging unlocks as soon as a FameBros shoot is confirmed."
+          title = "NO CHATS YET",
+          message = "Once a shoot is confirmed, you can chat with your crew right here."
         )
       }
     } else {
-      itemsIndexed(activeChats) { index, booking ->
+      itemsIndexed(activeChats, key = { _, booking -> booking.id }) { index, booking ->
         val otherPartyName = if (currentUser.role == UserRole.CREW) {
           booking.clientName
         } else {

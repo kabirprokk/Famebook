@@ -119,7 +119,9 @@ sealed class Screen(val route: String) {
     fun createRoute(mode: AuthMode = AuthMode.SIGN_IN) = "auth/${mode.name}"
   }
   object MainTabs : Screen("main_tabs")
-  object BookWizard : Screen("book_wizard")
+  object BookWizard : Screen("book_wizard?templateId={templateId}") {
+    fun createRoute(templateId: String = "") = "book_wizard?templateId=$templateId"
+  }
   object SearchingCrew : Screen("searching_crew/{bookingId}") {
     fun createRoute(bookingId: String) = "searching_crew/$bookingId"
   }
@@ -145,6 +147,7 @@ fun AppNavigation(
   val crewRepository = ServiceLocator.crewRepository
   val messageRepository = ServiceLocator.messageRepository
   val notificationRepository = ServiceLocator.notificationRepository
+  val favoriteRepository = ServiceLocator.favoriteRepository
 
   val currentUser by userRepository.currentUser.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
@@ -171,10 +174,21 @@ fun AppNavigation(
     }
   }
 
-  // Deep link handling from background notification tap
-  LaunchedEffect(initialBookingId) {
-    if (!initialBookingId.isNullOrBlank()) {
+  // Reset to the first tab when the tab set changes (e.g. different role
+  // after re-login) so the pager never points past the last page.
+  LaunchedEffect(tabs.size) {
+    if (pagerState.currentPage >= tabs.size) {
+      pagerState.scrollToPage(0)
+    }
+  }
+
+  // Deep link handling from background notification tap. Only when signed in;
+  // a signed-out tap just lands on the welcome flow.
+  LaunchedEffect(initialBookingId, currentUser?.id) {
+    if (!initialBookingId.isNullOrBlank() && currentUser != null) {
       navController.navigate(Screen.BookingDetail.createRoute(initialBookingId))
+      onBookingIdHandled()
+    } else if (!initialBookingId.isNullOrBlank() && currentUser == null && !isRestoringSession) {
       onBookingIdHandled()
     }
   }
@@ -361,10 +375,12 @@ fun AppNavigation(
                       currentUser = user,
                       bookingRepository = bookingRepository,
                       crewRepository = crewRepository,
-                      onBookShootClick = { navController.navigate(Screen.BookWizard.route) },
+                      favoriteRepository = favoriteRepository,
+                      onBookShootClick = { navController.navigate(Screen.BookWizard.createRoute()) },
                       onActiveRequestClick = { id -> navController.navigate(Screen.SearchingCrew.createRoute(id)) },
                       onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
-                      onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
+                      onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
+                      onRebookClick = { id -> navController.navigate(Screen.BookWizard.createRoute(id)) }
                     )
                   }
                   UserRole.CREW -> {
@@ -401,7 +417,7 @@ fun AppNavigation(
                     bookingRepository = bookingRepository,
                     onBookingClick = { id -> navController.navigate(Screen.BookingDetail.createRoute(id)) },
                     onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) },
-                    onBookShootClick = { navController.navigate(Screen.BookWizard.route) }
+                    onBookShootClick = { navController.navigate(Screen.BookWizard.createRoute()) }
                   )
                 }
                 else -> if (isCrew && page == 2) {
@@ -441,8 +457,19 @@ fun AppNavigation(
 
         // BOOKING WIZARD — clients only. Crew and admin accounts are blocked here
         // (the backend policy enforces this too) so only clients can book shoots.
-        composable(Screen.BookWizard.route) {
+        composable(
+          route = Screen.BookWizard.route,
+          arguments = listOf(navArgument("templateId") {
+            type = NavType.StringType
+            defaultValue = ""
+          })
+        ) { backStackEntry ->
+          val templateId = backStackEntry.arguments?.getString("templateId").orEmpty()
           val user = currentUser
+          val templateBooking by remember(templateId) {
+            if (templateId.isBlank()) kotlinx.coroutines.flow.flowOf(null)
+            else bookingRepository.getBooking(templateId)
+          }.collectAsState(initial = null)
           if (user != null) {
             if (user.role != UserRole.CLIENT) {
               Box(
@@ -459,6 +486,7 @@ fun AppNavigation(
             } else {
               BookShootWizardScreen(
                 currentUser = user,
+                templateBooking = templateBooking,
                 onBackClick = { navController.popBackStack() },
                 onRequestCrewSubmit = { newBooking ->
                   scope.launch {
@@ -550,6 +578,7 @@ fun AppNavigation(
             ConfirmationScreen(
               booking = booking!!,
               currentUser = user,
+              favoriteRepository = favoriteRepository,
               onOpenChat = { navController.navigate(Screen.BookingChat.createRoute(bookingId)) },
               onViewBookingDetails = { navController.navigate(Screen.BookingDetail.createRoute(bookingId)) },
               onBackToHome = {
@@ -573,6 +602,7 @@ fun AppNavigation(
               bookingId = bookingId,
               currentUser = user,
               bookingRepository = bookingRepository,
+              favoriteRepository = favoriteRepository,
               onBackClick = { navController.popBackStack() },
               onOpenChat = { id -> navController.navigate(Screen.BookingChat.createRoute(id)) }
             )

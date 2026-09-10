@@ -7,11 +7,13 @@ import com.example.data.remote.SupabaseSessionStore
 import com.example.BuildConfig
 import com.example.data.repository.SupabaseBookingRepository
 import com.example.data.repository.SupabaseCrewRepository
+import com.example.data.repository.SupabaseFavoriteRepository
 import com.example.data.repository.SupabaseMessageRepository
 import com.example.data.repository.SupabaseNotificationRepository
 import com.example.data.repository.SupabaseUserRepository
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
+import com.example.domain.repository.FavoriteRepository
 import com.example.domain.repository.MessageRepository
 import com.example.domain.repository.NotificationRepository
 import com.example.domain.repository.UserRepository
@@ -51,5 +53,9 @@ object ServiceLocator {
 
   val messageRepository: MessageRepository by lazy {
     SupabaseMessageRepository(supabaseApi, supabaseSession)
+  }
+
+  val favoriteRepository: FavoriteRepository by lazy {
+    SupabaseFavoriteRepository(supabaseApi, supabaseSession)
   }
 }

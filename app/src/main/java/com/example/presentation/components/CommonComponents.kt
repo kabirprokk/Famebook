@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Movie
@@ -62,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,6 +84,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
+import com.example.domain.repository.FavoriteRepository
 import com.example.domain.model.ShootType
 import com.example.domain.model.User
 import com.example.domain.model.UserRole
@@ -97,6 +101,7 @@ import com.example.ui.theme.ObsidianBlack
 import com.example.ui.theme.PureWhite
 import com.example.ui.theme.RecRed
 import com.example.ui.theme.TextMuted
+import kotlinx.coroutines.launch
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
@@ -904,6 +909,44 @@ fun EmptyState(
 // Backwards compatibility alias for components used elsewhere
 @Composable
 fun StatusChip(status: BookingStatus) = SimpleStatusBadge(status)
+
+/**
+ * Heart toggle that saves a crew member to the client's favorites list.
+ * Client-side only; nothing renders without a crew id.
+ */
+@Composable
+fun FavoriteHeartButton(
+  clientId: String,
+  crewUserId: String?,
+  favoriteRepository: FavoriteRepository,
+  modifier: Modifier = Modifier
+) {
+  if (crewUserId.isNullOrBlank()) return
+  val scope = rememberCoroutineScope()
+  var isFavorite by remember(clientId, crewUserId) { mutableStateOf(false) }
+  LaunchedEffect(clientId, crewUserId) {
+    isFavorite = runCatching { favoriteRepository.isFavorite(clientId, crewUserId) }.getOrDefault(false)
+  }
+  IconButton(
+    onClick = {
+      scope.launch {
+        favoriteRepository.toggleFavorite(clientId, crewUserId).onSuccess { isFavorite = it }
+      }
+    },
+    modifier = modifier.testTag("favorite_heart_$crewUserId")
+  ) {
+    FavoriteHeartIcon(isFavorite = isFavorite)
+  }
+}
+
+@Composable
+private fun FavoriteHeartIcon(isFavorite: Boolean) {
+  Icon(
+    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+    contentDescription = if (isFavorite) "Remove from favorites" else "Save to favorites",
+    tint = if (isFavorite) RecRed else TextSecondary
+  )
+}
 
 /**
  * Single shared slow pulse per screen for tiny accent glows (dots, LIVE

@@ -62,7 +62,9 @@ import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
 import com.example.domain.model.UserRole
 import com.example.domain.repository.BookingRepository
+import com.example.domain.repository.FavoriteRepository
 import com.example.presentation.components.FameBookTopBar
+import com.example.presentation.components.FavoriteHeartButton
 import com.example.presentation.components.PrimaryGoldButton
 import com.example.presentation.components.SecondaryDarkButton
 import com.example.presentation.components.StatusChip
@@ -89,6 +91,7 @@ fun BookingDetailScreen(
   bookingId: String,
   currentUser: User,
   bookingRepository: BookingRepository,
+  favoriteRepository: FavoriteRepository,
   onBackClick: () -> Unit,
   onOpenChat: (String) -> Unit
 ) {
@@ -181,14 +184,27 @@ fun BookingDetailScreen(
               modifier = Modifier.fillMaxWidth()
             ) {
               Column(modifier = Modifier.padding(18.dp)) {
-                Text(
-                  text = if (currentUser.role == UserRole.CREW) "CLIENT INFORMATION" else "ASSIGNED CREW MEMBER",
-                  style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                  ),
-                  color = AmberGold
-                )
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.SpaceBetween,
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Text(
+                    text = if (currentUser.role == UserRole.CREW) "CLIENT INFORMATION" else "ASSIGNED CREW MEMBER",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                      fontWeight = FontWeight.Bold,
+                      letterSpacing = 1.sp
+                    ),
+                    color = AmberGold
+                  )
+                  if (currentUser.role == UserRole.CLIENT) {
+                    FavoriteHeartButton(
+                      clientId = currentUser.id,
+                      crewUserId = b.assignedCrewId,
+                      favoriteRepository = favoriteRepository
+                    )
+                  }
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 

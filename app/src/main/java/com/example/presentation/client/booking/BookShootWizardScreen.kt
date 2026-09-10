@@ -97,29 +97,35 @@ import java.util.UUID
 @Composable
 fun BookShootWizardScreen(
   currentUser: User,
+  templateBooking: Booking? = null,
   onBackClick: () -> Unit,
   onRequestCrewSubmit: (Booking) -> Unit
 ) {
   var currentStep by remember { mutableIntStateOf(1) }
 
   // State
-  var selectedShootType by remember { mutableStateOf(ShootType.VIDEOGRAPHY) }
+  var selectedShootType by remember { mutableStateOf(templateBooking?.shootType ?: ShootType.VIDEOGRAPHY) }
   var selectedDate by remember { mutableStateOf("Tomorrow, 10:00 AM") }
-  var selectedDuration by remember { mutableIntStateOf(4) }
-  var locationName by remember { mutableStateOf("Bandra Production Studio") }
-  var locationAddress by remember { mutableStateOf("Bandra West, Mumbai") }
+  var selectedDuration by remember { mutableIntStateOf(templateBooking?.durationHours ?: 4) }
+  var locationName by remember { mutableStateOf(templateBooking?.location?.name ?: "Bandra Production Studio") }
+  var locationAddress by remember { mutableStateOf(templateBooking?.location?.address ?: "Bandra West, Mumbai") }
   var locationInstructions by remember { mutableStateOf("") }
 
   val crewQuantities = remember {
     mutableStateMapOf<CrewRole, Int>().apply {
-      put(CrewRole.CINEMATOGRAPHER, 1)
-      put(CrewRole.ASSISTANT, 1)
+      val templateRoles = templateBooking?.requirements?.associate { it.role to it.count }
+      if (templateRoles.isNullOrEmpty()) {
+        put(CrewRole.CINEMATOGRAPHER, 1)
+        put(CrewRole.ASSISTANT, 1)
+      } else {
+        putAll(templateRoles)
+      }
     }
   }
 
-  var shootTitle by remember { mutableStateOf("") }
-  var shootDescription by remember { mutableStateOf("") }
-  var specialInstructions by remember { mutableStateOf("") }
+  var shootTitle by remember { mutableStateOf(templateBooking?.title ?: "") }
+  var shootDescription by remember { mutableStateOf(templateBooking?.description ?: "") }
+  var specialInstructions by remember { mutableStateOf(templateBooking?.specialInstructions ?: "") }
 
   Scaffold(
     containerColor = ObsidianBlack,

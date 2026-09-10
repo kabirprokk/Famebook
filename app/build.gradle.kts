@@ -35,6 +35,11 @@ android {
       "SUPABASE_PUBLISHABLE_KEY",
       "\"${localProperties.getProperty("supabase.publishableKey", "") }\""
     )
+    buildConfigField(
+      "String",
+      "GOOGLE_WEB_CLIENT_ID",
+      "\"${localProperties.getProperty("google.webClientId", "") }\""
+    )
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -106,6 +111,9 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.androidx.credentials)
+  implementation(libs.androidx.credentials.play.services)
+  implementation(libs.googleid)
   implementation(libs.logging.interceptor)
   implementation(libs.media3.exoplayer)
   implementation(libs.media3.ui)

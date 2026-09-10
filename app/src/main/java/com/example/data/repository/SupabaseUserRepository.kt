@@ -154,6 +154,42 @@ class SupabaseUserRepository(
     }.getOrDefault(emptyList())
   }
 
+  override suspend fun sendPasswordReset(email: String): Result<Unit> = withContext(Dispatchers.IO) {
+    val cleanEmail = email.trim()
+    if (cleanEmail.isBlank() || !cleanEmail.contains("@")) {
+      return@withContext Result.failure(IllegalArgumentException("Enter a valid email address."))
+    }
+    runCatching {
+      val payload = JSONObject().put("email", cleanEmail)
+      api.request("POST", "auth/v1/recover", payload.toString()).use { response ->
+        if (!response.isSuccessful) error(response.errorMessage())
+      }
+    }.fold(
+      { Result.success(Unit) },
+      { Result.failure(IllegalArgumentException(it.message ?: "Could not send reset email.")) }
+    )
+  }
+
+  override suspend fun signInWithGoogle(idToken: String, nonce: String): Result<User> = withContext(Dispatchers.IO) {
+    _authState.value = AuthState.Authenticating
+    val payload = JSONObject()
+      .put("provider", "google")
+      .put("token", idToken)
+      .put("nonce", nonce)
+    runCatching {
+      api.request("POST", "auth/v1/verify", payload.toString()).use { response ->
+        if (!response.isSuccessful) error(response.errorMessage())
+        val json = JSONObject(response.body?.string().orEmpty())
+        persistTokens(json)
+        val authUser = json.getJSONObject("user")
+        val metadata = authUser.optJSONObject("user_metadata")
+        val fallbackName = metadata?.optString("full_name", "")
+          .orEmpty().ifBlank { metadata?.optString("name").orEmpty() }
+        loadProfile(authUser.getString("id"), fallbackName, authUser.optString("email"), "")
+      }
+    }.fold({ setAuthenticated(it) }, { failure(it.message ?: "Google sign-in failed.") })
+  }
+
   override suspend fun updateUserRole(userId: String, role: UserRole): Result<User> = withContext(Dispatchers.IO) {
     runCatching {
       val payload = JSONObject().put("p_user_id", userId).put("p_role", role.name)

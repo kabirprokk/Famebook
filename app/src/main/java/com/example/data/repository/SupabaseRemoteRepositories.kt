@@ -16,6 +16,7 @@ import com.example.domain.model.ShootType
 import com.example.domain.model.UserRole
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.CrewRepository
+import com.example.domain.repository.FavoriteRepository
 import com.example.domain.repository.MessageRepository
 import com.example.domain.repository.NotificationRepository
 import kotlinx.coroutines.Dispatchers
@@ -471,6 +472,60 @@ class SupabaseNotificationRepository(api: SupabaseHttpClient = defaultApi(), ses
   override suspend fun sendNotification(notification: AppNotification) = withContext(Dispatchers.IO) { api.request("POST", "rest/v1/notifications", JSONObject().put("recipient_id", notification.recipientUserId).put("booking_id", notification.bookingId).put("title", notification.title).put("body", notification.message).put("is_read", notification.isRead).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
   override suspend fun markAsRead(notificationId: String) = withContext(Dispatchers.IO) { api.request("PATCH", "rest/v1/notifications?id=eq.$notificationId", JSONObject().put("is_read", true).toString(), token()).use { if (!it.isSuccessful) error(responseError(it)) } }
   override suspend fun emitRequestEvent(event: RequestEvent) { _events.emit(event) }
+}
+
+class SupabaseFavoriteRepository(
+  api: SupabaseHttpClient = defaultApi(),
+  session: SupabaseSession = SupabaseSession()
+) : SupabaseRepository(api, session), FavoriteRepository {
+  override fun getFavoriteCrewIds(clientId: String): Flow<List<String>> = flow {
+    val result = runCatching {
+      api.request(
+        "GET",
+        "rest/v1/favorite_crew?client_id=eq.$clientId&select=crew_user_id&order=created_at.desc",
+        accessToken = token()
+      ).use { response ->
+        if (!response.isSuccessful) error(responseError(response))
+        val rows = JSONArray(response.body?.string().orEmpty())
+        List(rows.length()) { rows.getJSONObject(it).optString("crew_user_id") }.filter { it.isNotBlank() }
+      }
+    }.getOrElse { emptyList() }
+    emit(result)
+  }.flowOn(Dispatchers.IO)
+
+  override suspend fun isFavorite(clientId: String, crewUserId: String): Boolean = withContext(Dispatchers.IO) {
+    runCatching {
+      api.request(
+        "GET",
+        "rest/v1/favorite_crew?client_id=eq.$clientId&crew_user_id=eq.$crewUserId&select=crew_user_id",
+        accessToken = token()
+      ).use { response ->
+        if (!response.isSuccessful) return@runCatching false
+        JSONArray(response.body?.string().orEmpty()).length() > 0
+      }
+    }.getOrDefault(false)
+  }
+
+  override suspend fun toggleFavorite(clientId: String, crewUserId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+    runCatching {
+      if (isFavorite(clientId, crewUserId)) {
+        api.request(
+          "DELETE",
+          "rest/v1/favorite_crew?client_id=eq.$clientId&crew_user_id=eq.$crewUserId",
+          accessToken = token()
+        ).use { response ->
+          if (!response.isSuccessful) error(responseError(response))
+        }
+        false
+      } else {
+        val payload = JSONObject().put("client_id", clientId).put("crew_user_id", crewUserId)
+        api.request("POST", "rest/v1/favorite_crew", payload.toString(), token()).use { response ->
+          if (!response.isSuccessful) error(responseError(response))
+        }
+        true
+      }
+    }
+  }
 }
 
 private inline fun <reified T : Enum<T>> enumValue(value: String, fallback: T): T = runCatching { enumValueOf<T>(value.uppercase().replace(' ', '_')) }.getOrDefault(fallback)

@@ -61,7 +61,9 @@ import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
+import com.example.domain.repository.FavoriteRepository
 import com.example.presentation.components.FameBookTopBar
+import com.example.presentation.components.FavoriteHeartButton
 import com.example.presentation.components.PrimaryGoldButton
 import com.example.presentation.components.SecondaryDarkButton
 import com.example.ui.theme.AmberGold
@@ -103,10 +105,10 @@ fun SearchingCrewScreen(
 
   var statusMessageIndex by remember { mutableIntStateOf(0) }
   val statusMessages = listOf(
-    "Checking verified FameBros professionals...",
-    "Alerting verified cinematographers & crew in Mumbai...",
-    "Matching gear & production specs...",
-    "Awaiting crew claim for your production brief..."
+    "Finding free crew near you...",
+    "Sending your shoot to the crew...",
+    "Matching the right gear for your brief...",
+    "Waiting for a crew member to pick this up..."
   )
 
   LaunchedEffect(Unit) {
@@ -364,6 +366,7 @@ fun CinematicOrbitalPulse() {
 fun ConfirmationScreen(
   booking: Booking,
   currentUser: User,
+  favoriteRepository: FavoriteRepository,
   onOpenChat: () -> Unit,
   onViewBookingDetails: () -> Unit,
   onBackToHome: () -> Unit
@@ -412,7 +415,7 @@ fun ConfirmationScreen(
       Spacer(modifier = Modifier.height(6.dp))
 
       Text(
-        text = "Your FameBros specialist is locked in for set.",
+        text = "Your crew is booked. Say hello and lock the plan.",
         style = MaterialTheme.typography.bodyLarge,
         color = TextSecondary,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -466,7 +469,7 @@ fun ConfirmationScreen(
 
               Spacer(modifier = Modifier.width(16.dp))
 
-              Column {
+              Column(modifier = Modifier.weight(1f)) {
                 Text(
                   text = crewName.uppercase(),
                   style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -484,6 +487,12 @@ fun ConfirmationScreen(
                   color = TextSecondary
                 )
               }
+
+              FavoriteHeartButton(
+                clientId = currentUser.id,
+                crewUserId = booking.assignedCrewId,
+                favoriteRepository = favoriteRepository
+              )
             }
 
             Spacer(modifier = Modifier.height(18.dp))

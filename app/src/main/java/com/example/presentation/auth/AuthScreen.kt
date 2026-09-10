@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Person
@@ -26,6 +27,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,8 +46,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.example.BuildConfig
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import java.util.UUID
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -99,6 +110,8 @@ fun AuthScreen(
   var showForgotPasswordDialog by remember { mutableStateOf(false) }
   var resetEmail by remember { mutableStateOf("") }
   var resetSuccessMessage by remember { mutableStateOf<String?>(null) }
+  var resetErrorMessage by remember { mutableStateOf<String?>(null) }
+  var resetSending by remember { mutableStateOf(false) }
 
   val scrollState = rememberScrollState()
 
@@ -308,6 +321,12 @@ fun AuthScreen(
                 .testTag("auth_submit_button")
             )
 
+            GoogleSignInButton(
+              userRepository = userRepository,
+              onSuccess = onLoginSuccess,
+              onError = { errorMessage = it }
+            )
+
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.Center,
@@ -513,6 +532,7 @@ fun AuthScreen(
       onDismissRequest = {
         showForgotPasswordDialog = false
         resetSuccessMessage = null
+        resetErrorMessage = null
       },
       containerColor = DarkSurface,
       title = {
@@ -545,28 +565,114 @@ fun AuthScreen(
               style = MaterialTheme.typography.bodySmall
             )
           }
+          if (resetErrorMessage != null) {
+            Text(
+              resetErrorMessage!!,
+              color = RecRed,
+              style = MaterialTheme.typography.bodySmall
+            )
+          }
         }
       },
       confirmButton = {
         Button(
           onClick = {
-            if (resetEmail.isNotBlank()) {
-              resetSuccessMessage = "Instructions dispatched to $resetEmail"
+            resetErrorMessage = null
+            resetSending = true
+            scope.launch {
+              val result = userRepository.sendPasswordReset(resetEmail)
+              resetSending = false
+              if (result.isSuccess) {
+                resetSuccessMessage = "Check $resetEmail for the reset link."
+              } else {
+                resetErrorMessage = result.exceptionOrNull()?.message ?: "Could not send reset email."
+              }
             }
           },
+          enabled = !resetSending,
           colors = ButtonDefaults.buttonColors(containerColor = AmberGold, contentColor = ObsidianBlack)
         ) {
-          Text("Send Reset Link", fontWeight = FontWeight.Bold)
+          Text(if (resetSending) "Sending..." else "Send Reset Link", fontWeight = FontWeight.Bold)
         }
       },
       dismissButton = {
         TextButton(onClick = {
           showForgotPasswordDialog = false
           resetSuccessMessage = null
+          resetErrorMessage = null
         }) {
           Text("Close", color = TextSecondary)
         }
       }
+    )
+  }
+}
+@Composable
+private fun GoogleSignInButton(
+  userRepository: UserRepository,
+  onSuccess: (User) -> Unit,
+  onError: (String) -> Unit
+) {
+  // Hidden until a Google web client id is configured (see local.properties).
+  if (BuildConfig.GOOGLE_WEB_CLIENT_ID.isBlank()) return
+  val context = LocalContext.current
+  val scope = rememberCoroutineScope()
+  var busy by remember { mutableStateOf(false) }
+
+  OutlinedButton(
+    onClick = {
+      if (busy) return@OutlinedButton
+      busy = true
+      scope.launch {
+        try {
+          val nonce = UUID.randomUUID().toString()
+          val googleIdOption = GetGoogleIdOption.Builder()
+            .setFilterByAuthorizedAccounts(false)
+            .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+            .setNonce(nonce)
+            .build()
+          val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
+          val result = CredentialManager.create(context).getCredential(context, request)
+          val credential = result.credential
+          if (credential is CustomCredential &&
+            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+          ) {
+            val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+            val signIn = userRepository.signInWithGoogle(idToken, nonce)
+            if (signIn.isSuccess) onSuccess(signIn.getOrThrow())
+            else onError(signIn.exceptionOrNull()?.message ?: "Google sign-in didn't work.")
+          } else {
+            onError("Google sign-in didn't work. Try email instead.")
+          }
+        } catch (e: GetCredentialException) {
+          onError("No Google account found on this device.")
+        } catch (e: Exception) {
+          onError(e.message ?: "Google sign-in didn't work.")
+        } finally {
+          busy = false
+        }
+      }
+    },
+    enabled = !busy,
+    shape = RoundedCornerShape(14.dp),
+    border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder),
+    colors = ButtonDefaults.outlinedButtonColors(contentColor = PureWhite),
+    modifier = Modifier
+      .fillMaxWidth()
+      .testTag("google_signin_button")
+  ) {
+    Icon(
+      imageVector = Icons.Default.AccountCircle,
+      contentDescription = null,
+      tint = PureWhite,
+      modifier = Modifier.size(20.dp)
+    )
+    Spacer(modifier = Modifier.width(10.dp))
+    Text(
+      text = if (busy) "Connecting..." else "Continue with Google",
+      style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
     )
   }
 }

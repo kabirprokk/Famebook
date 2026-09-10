@@ -50,6 +50,10 @@ interface UserRepository {
     Result.failure(UnsupportedOperationException("Role assignment not supported"))
   suspend fun restoreSession(): Result<User> =
     Result.failure(IllegalStateException("No saved session"))
+  suspend fun sendPasswordReset(email: String): Result<Unit> =
+    Result.failure(UnsupportedOperationException("Password reset not supported"))
+  suspend fun signInWithGoogle(idToken: String, nonce: String): Result<User> =
+    Result.failure(UnsupportedOperationException("Google sign-in not supported"))
 }
 
 interface BookingRepository {
@@ -84,6 +88,12 @@ interface MessageRepository {
     senderRole: UserRole,
     text: String
   ): Result<Message>
+}
+
+interface FavoriteRepository {
+  fun getFavoriteCrewIds(clientId: String): Flow<List<String>>
+  suspend fun isFavorite(clientId: String, crewUserId: String): Boolean
+  suspend fun toggleFavorite(clientId: String, crewUserId: String): Result<Boolean>
 }
 
 interface NotificationRepository {

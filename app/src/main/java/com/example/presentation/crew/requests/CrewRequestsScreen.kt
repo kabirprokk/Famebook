@@ -32,7 +32,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -73,6 +76,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun CrewRequestsScreen(
   currentUser: User,
   bookingRepository: BookingRepository,
@@ -82,21 +86,36 @@ fun CrewRequestsScreen(
 ) {
   val scope = rememberCoroutineScope()
   // Poll while visible so requests created on another device appear here.
+  // Pull-to-refresh triggers the same reload on demand.
   var refreshTick by remember { mutableIntStateOf(0) }
+  var isRefreshing by remember { mutableStateOf(false) }
   LaunchedEffect(currentUser.id) {
     while (true) {
       delay(15000)
       refreshTick++
     }
   }
+  LaunchedEffect(refreshTick) {
+    delay(1200)
+    isRefreshing = false
+  }
   val incomingRequests by remember(currentUser.id, refreshTick) {
     bookingRepository.getIncomingRequestsForCrew(currentUser.id)
   }.collectAsState(initial = emptyList())
 
-  LazyColumn(
+  PullToRefreshBox(
+    isRefreshing = isRefreshing,
+    onRefresh = {
+      isRefreshing = true
+      refreshTick++
+    },
     modifier = Modifier
       .fillMaxSize()
       .background(ObsidianBlack)
+  ) {
+  LazyColumn(
+    modifier = Modifier
+      .fillMaxSize()
       .padding(horizontal = 20.dp),
     contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
   ) {
@@ -111,7 +130,7 @@ fun CrewRequestsScreen(
           color = PureWhite
         )
         Text(
-          text = "Opportunities awaiting your acceptance",
+          text = "Shoots waiting for your answer",
           style = MaterialTheme.typography.bodySmall,
           color = TextSecondary
         )
@@ -147,13 +166,13 @@ fun CrewRequestsScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-              text = "No Pending Requests",
+              text = "Nothing here right now",
               style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
               color = PureWhite
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-              text = "When clients request crew for upcoming shoots in Mumbai, they will appear here immediately.",
+              text = "New shoot requests will pop up here as soon as a client sends one. Stay available so you don't miss out.",
               style = MaterialTheme.typography.bodySmall,
               color = TextSecondary,
               textAlign = TextAlign.Center
@@ -188,6 +207,7 @@ fun CrewRequestsScreen(
         Spacer(modifier = Modifier.height(16.dp))
       }
     }
+  }
   }
 }
 

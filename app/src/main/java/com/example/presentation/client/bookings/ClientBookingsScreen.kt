@@ -12,11 +12,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.domain.model.BookingStatus
@@ -30,7 +37,9 @@ import com.example.presentation.components.UpcomingBookingCard
 import com.example.ui.theme.ObsidianBlack
 import com.example.ui.theme.PureWhite
 import com.example.ui.theme.TextSecondary
+import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClientBookingsScreen(
   currentUser: User,
@@ -39,7 +48,23 @@ fun ClientBookingsScreen(
   onOpenChat: (String) -> Unit,
   onBookShootClick: () -> Unit
 ) {
-  val clientBookings by bookingRepository.getClientBookings(currentUser.id).collectAsState(initial = emptyList())
+  // Poll while visible so a crew accept on another device updates statuses.
+  // Pull-to-refresh triggers the same reload on demand.
+  var refreshTick by remember { mutableIntStateOf(0) }
+  var isRefreshing by remember { mutableStateOf(false) }
+  LaunchedEffect(currentUser.id) {
+    while (true) {
+      delay(20000)
+      refreshTick++
+    }
+  }
+  LaunchedEffect(refreshTick) {
+    delay(1200)
+    isRefreshing = false
+  }
+  val clientBookings by remember(currentUser.id, refreshTick) {
+    bookingRepository.getClientBookings(currentUser.id)
+  }.collectAsState(initial = emptyList())
 
   val activeShoots = clientBookings.filter {
     it.status == BookingStatus.CONFIRMED || it.status == BookingStatus.IN_PROGRESS || it.status == BookingStatus.SEARCHING_CREW
@@ -49,10 +74,19 @@ fun ClientBookingsScreen(
     it.status == BookingStatus.COMPLETED || it.status == BookingStatus.CANCELLED
   }
 
-  LazyColumn(
+  PullToRefreshBox(
+    isRefreshing = isRefreshing,
+    onRefresh = {
+      isRefreshing = true
+      refreshTick++
+    },
     modifier = Modifier
       .fillMaxSize()
       .background(ObsidianBlack)
+  ) {
+  LazyColumn(
+    modifier = Modifier
+      .fillMaxSize()
       .padding(horizontal = 20.dp),
     contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
   ) {
@@ -64,8 +98,8 @@ fun ClientBookingsScreen(
     if (clientBookings.isEmpty()) {
       item {
         EmptyState(
-          title = "YOUR NEXT SHOOT STARTS HERE",
-          message = "No bookings yet. Select your shoot type and request verified FameBros crew in seconds.",
+          title = "NO SHOOTS YET",
+          message = "Tell us what you're shooting and we'll find the right crew for it.",
           actionText = "BOOK A SHOOT",
           onActionClick = onBookShootClick
         )
@@ -81,7 +115,7 @@ fun ClientBookingsScreen(
           )
         }
 
-        itemsIndexed(activeShoots) { index, booking ->
+        itemsIndexed(activeShoots, key = { _, booking -> booking.id }) { index, booking ->
           CardEntrance(index = index) {
             UpcomingBookingCard(
               booking = booking,
@@ -104,7 +138,7 @@ fun ClientBookingsScreen(
           )
         }
 
-        itemsIndexed(pastShoots) { index, booking ->
+        itemsIndexed(pastShoots, key = { _, booking -> booking.id }) { index, booking ->
           CardEntrance(index = index) {
             CleanBookingItem(
               booking = booking,
@@ -115,5 +149,6 @@ fun ClientBookingsScreen(
         }
       }
     }
+  }
   }
 }
