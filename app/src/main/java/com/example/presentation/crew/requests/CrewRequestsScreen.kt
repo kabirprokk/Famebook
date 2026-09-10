@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.RealtimeHub
 import com.example.domain.model.Booking
 import com.example.domain.model.User
 import com.example.domain.repository.BookingRepository
@@ -90,8 +91,11 @@ fun CrewRequestsScreen(
   var refreshTick by remember { mutableIntStateOf(0) }
   var isRefreshing by remember { mutableStateOf(false) }
   LaunchedEffect(currentUser.id) {
+    launch {
+      RealtimeHub.bookingsChanged.collect { refreshTick++ }
+    }
     while (true) {
-      delay(15000)
+      delay(30000)
       refreshTick++
     }
   }

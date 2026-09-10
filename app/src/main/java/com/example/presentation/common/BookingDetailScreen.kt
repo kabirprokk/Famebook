@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.RealtimeHub
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
@@ -97,11 +98,14 @@ fun BookingDetailScreen(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  // Poll while open so status changes from the other device appear live.
+  // Push-first refresh; the timer is only a socket fallback.
   var refreshTick by remember { mutableIntStateOf(0) }
   LaunchedEffect(bookingId) {
+    launch {
+      RealtimeHub.bookingsChanged.collect { refreshTick++ }
+    }
     while (true) {
-      delay(10000)
+      delay(30000)
       refreshTick++
     }
   }

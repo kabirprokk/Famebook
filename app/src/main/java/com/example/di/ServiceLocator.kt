@@ -2,6 +2,7 @@ package com.example.di
 
 import android.content.Context
 import com.example.data.remote.SupabaseHttpClient
+import com.example.data.remote.SupabaseRealtimeClient
 import com.example.data.remote.SupabaseSession
 import com.example.data.remote.SupabaseSessionStore
 import com.example.BuildConfig
@@ -57,5 +58,24 @@ object ServiceLocator {
 
   val favoriteRepository: FavoriteRepository by lazy {
     SupabaseFavoriteRepository(supabaseApi, supabaseSession)
+  }
+
+  private var realtimeClient: SupabaseRealtimeClient? = null
+
+  /** Push updates while signed in; polling elsewhere covers any socket gap. */
+  fun startRealtime() {
+    if (realtimeClient == null) {
+      realtimeClient = SupabaseRealtimeClient(
+        BuildConfig.SUPABASE_URL,
+        BuildConfig.SUPABASE_PUBLISHABLE_KEY,
+        tokenProvider = { supabaseSession.accessToken }
+      )
+    }
+    realtimeClient?.start()
+  }
+
+  fun stopRealtime() {
+    realtimeClient?.stop()
+    realtimeClient = null
   }
 }

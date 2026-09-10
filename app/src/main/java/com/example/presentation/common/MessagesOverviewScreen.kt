@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.RealtimeHub
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
@@ -58,6 +59,7 @@ import com.example.ui.theme.PureWhite
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun MessagesOverviewScreen(
@@ -65,11 +67,14 @@ fun MessagesOverviewScreen(
   bookingRepository: BookingRepository,
   onOpenChat: (String) -> Unit
 ) {
-  // Poll while visible so newly confirmed shoots appear without reopening.
+  // Push-first refresh; the timer is only a socket fallback.
   var refreshTick by remember { mutableIntStateOf(0) }
   LaunchedEffect(currentUser.id) {
+    launch {
+      RealtimeHub.bookingsChanged.collect { refreshTick++ }
+    }
     while (true) {
-      delay(20000)
+      delay(30000)
       refreshTick++
     }
   }

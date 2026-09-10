@@ -193,6 +193,12 @@ fun AppNavigation(
     }
   }
 
+  // Live push socket follows the session: on while signed in, off on logout.
+  LaunchedEffect(currentUser?.id) {
+    if (currentUser != null) ServiceLocator.startRealtime()
+    else ServiceLocator.stopRealtime()
+  }
+
   // Manage persistent Crew Dispatch Service in background when crew member is Available
   LaunchedEffect(currentUser?.id, currentUser?.role) {
     val user = currentUser

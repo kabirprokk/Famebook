@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.remote.RealtimeHub
 import com.example.domain.model.Message
 import com.example.domain.model.User
 import com.example.domain.model.UserRole
@@ -85,11 +86,18 @@ fun BookingChatScreen(
   bookingRepository: BookingRepository,
   onBackClick: () -> Unit
 ) {
-  // Poll while open so messages from the other device arrive live.
+  // Push-first refresh: incoming messages land within a second;
+  // the timer is only a socket fallback.
   var refreshTick by remember { mutableIntStateOf(0) }
   LaunchedEffect(bookingId) {
+    launch {
+      RealtimeHub.messagesChanged.collect { refreshTick++ }
+    }
+    launch {
+      RealtimeHub.bookingsChanged.collect { refreshTick++ }
+    }
     while (true) {
-      delay(5000)
+      delay(15000)
       refreshTick++
     }
   }
@@ -255,7 +263,7 @@ fun BookingChatScreen(
         }
       }
 
-      items(messages) { msg ->
+      items(messages, key = { it.id }) { msg ->
         val isMe = msg.senderId == currentUser.id
         MessageBubble(message = msg, isMe = isMe)
       }
@@ -265,8 +273,8 @@ fun BookingChatScreen(
 
 @Composable
 private fun MessageBubble(message: Message, isMe: Boolean) {
-  val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-  val formattedTime = timeFormat.format(Date(message.timestamp))
+  val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+  val formattedTime = remember(message.timestamp) { timeFormat.format(Date(message.timestamp)) }
 
   Column(
     modifier = Modifier

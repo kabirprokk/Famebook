@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.User
+import com.example.data.remote.RealtimeHub
 import com.example.domain.repository.BookingRepository
 import com.example.domain.repository.FavoriteRepository
 import com.example.presentation.components.FameBookTopBar
@@ -75,6 +76,7 @@ import com.example.ui.theme.PureWhite
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Liquid-Glass Radar Finding Crew Screen.
@@ -91,12 +93,15 @@ fun SearchingCrewScreen(
   onCancelled: () -> Unit,
   onDismissToHome: () -> Unit
 ) {
-  // Re-fetch every few seconds so a crew accept on another device
-  // flips this screen to CONFIRMED without any manual refresh.
+  // Push-first refresh: a crew accept on another device flips this screen
+  // to CONFIRMED within a second; the timer is only a socket fallback.
   var refreshTick by remember { mutableIntStateOf(0) }
   LaunchedEffect(bookingId) {
+    launch {
+      RealtimeHub.bookingsChanged.collect { refreshTick++ }
+    }
     while (true) {
-      delay(5000)
+      delay(15000)
       refreshTick++
     }
   }
