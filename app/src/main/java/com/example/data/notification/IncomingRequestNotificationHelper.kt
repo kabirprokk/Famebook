@@ -103,6 +103,26 @@ object IncomingRequestNotificationHelper {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
+    // Full-screen takeover: the same rounded Accept / Decline card, launched
+    // over any app (or the lock screen) when FameBook itself is closed.
+    val popupIntent = Intent(context, com.example.presentation.crew.request.CrewIncomingActivity::class.java).apply {
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra(
+        com.example.presentation.crew.request.CrewIncomingActivity.EXTRA_BOOKING_ID,
+        request.id
+      )
+      putExtra(
+        com.example.presentation.crew.request.CrewIncomingActivity.EXTRA_CREW_ID,
+        crewUserId
+      )
+    }
+    val fullScreenPendingIntent = PendingIntent.getActivity(
+      context,
+      notificationId + 100,
+      popupIntent,
+      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
     // Action 1: ACCEPT
     val acceptIntent = Intent(context, ShootRequestActionReceiver::class.java).apply {
       action = ShootRequestActionReceiver.ACTION_ACCEPT_SHOOT
@@ -152,6 +172,7 @@ object IncomingRequestNotificationHelper {
       .setAutoCancel(true)
       .setOnlyAlertOnce(false)
       .setContentIntent(contentPendingIntent)
+      .setFullScreenIntent(fullScreenPendingIntent, true)
       .addAction(0, "DECLINE", declinePendingIntent)
       .addAction(0, "ACCEPT", acceptPendingIntent)
       .setVibrate(longArrayOf(0, 350, 150, 350))
