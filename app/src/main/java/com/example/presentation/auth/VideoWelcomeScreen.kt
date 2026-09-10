@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -104,7 +107,18 @@ fun VideoWelcomeScreen(
     }
   }
 
-  Box(modifier = Modifier.fillMaxSize().background(ObsidianBlack)) {
+  Box(
+    modifier = Modifier
+      .fillMaxSize()
+      .background(ObsidianBlack)
+      .clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null
+      ) {
+        // Tapping anywhere skips the intro and reveals the CTA immediately.
+        showCta = true
+      }
+  ) {
     AndroidView(
       factory = { ctx ->
         PlayerView(ctx).apply {
@@ -138,6 +152,23 @@ fun VideoWelcomeScreen(
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
       Spacer(modifier = Modifier.weight(1f))
+
+      AnimatedVisibility(
+        visible = !showCta,
+        enter = fadeIn(animationSpec = tween(durationMillis = 400)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 250))
+      ) {
+        Text(
+          text = "TAP TO SKIP",
+          style = MaterialTheme.typography.labelSmall.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp
+          ),
+          color = PureWhite.copy(alpha = 0.7f),
+          textAlign = TextAlign.Center,
+          modifier = Modifier.padding(bottom = 24.dp)
+        )
+      }
 
       AnimatedVisibility(
         visible = showCta,
