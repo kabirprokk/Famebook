@@ -3,6 +3,8 @@ package com.example.presentation.crew.request
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.notification.IncomingRequestNotificationHelper
+import com.example.data.remote.RealtimeHub
+import com.example.domain.model.Booking
 import com.example.domain.model.BookingStatus
 import com.example.domain.model.IncomingShootRequest
 import com.example.domain.model.RequestEvent
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 sealed interface IncomingRequestUiState {
@@ -51,7 +54,41 @@ class CrewIncomingRequestViewModel(
     observeIncomingRequests()
     observeRequestEvents()
     observeBookingsForAssignmentChanges()
+    observeRealtimePush()
   }
+
+  /**
+   * Live push hook: the repository flow below only fetches once per
+   * collection, so without this the popup would never appear for requests
+   * created while the app is already open. Every bookings push re-checks
+   * the backend and raises the floating card for the newest open request.
+   */
+  private fun observeRealtimePush() {
+    viewModelScope.launch {
+      RealtimeHub.bookingsChanged.collect {
+        if (!isCrewAvailable) return@collect
+        if (_uiState.value is IncomingRequestUiState.ShootConfirmed) return@collect
+        val active = runCatching {
+          bookingRepository.getIncomingRequestsForCrew(crewUserId).first()
+        }.getOrNull()?.firstOrNull() ?: return@collect
+        val current = _uiState.value as? IncomingRequestUiState.ActiveRequest
+        if (current == null || current.request.id != active.id) {
+          showActiveRequest(active.toIncomingRequest())
+        }
+      }
+    }
+  }
+
+  private fun Booking.toIncomingRequest() = IncomingShootRequest(
+    id = id,
+    shootTypeTitle = shootType.title,
+    shootTitle = title,
+    dateFormatted = date.uppercase(),
+    timeAndDuration = "$startTime • $durationHours HOURS",
+    locationName = location.name,
+    requiredRole = requirements.firstOrNull()?.role?.title ?: "Lead Cinematographer",
+    rawBooking = this
+  )
 
   private fun observeAvailability() {
     viewModelScope.launch {

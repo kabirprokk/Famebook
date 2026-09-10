@@ -150,6 +150,7 @@ object IncomingRequestNotificationHelper {
       .setCategory(NotificationCompat.CATEGORY_CALL)
       .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setAutoCancel(true)
+      .setOnlyAlertOnce(false)
       .setContentIntent(contentPendingIntent)
       .addAction(0, "DECLINE", declinePendingIntent)
       .addAction(0, "ACCEPT", acceptPendingIntent)
