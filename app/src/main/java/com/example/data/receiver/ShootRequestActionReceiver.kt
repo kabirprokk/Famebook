@@ -32,6 +32,10 @@ class ShootRequestActionReceiver : BroadcastReceiver() {
     val scope = CoroutineScope(Dispatchers.IO)
 
     scope.launch {
+      // Notification taps can arrive with a dead process: re-authenticate
+      // from local storage before touching the backend.
+      ServiceLocator.init(context.applicationContext)
+      runCatching { ServiceLocator.userRepository.restoreSession() }
       try {
         when (action) {
           ACTION_ACCEPT_SHOOT -> {
